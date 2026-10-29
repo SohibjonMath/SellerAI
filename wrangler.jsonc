@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "sellerai-db",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+      "database_id": "7a3208cf-151b-4800-b9aa-9be9971bf655"
     }
   ],
   "r2_buckets": [
