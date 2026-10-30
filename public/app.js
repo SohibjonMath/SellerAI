@@ -2,7 +2,7 @@ const $ = s => document.querySelector(s);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = v => new Intl.NumberFormat('uz-UZ').format(Number(v)||0);
 const sum = v => `${fmt(v)} so‘m`;
-const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false };
+const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false,uzumNetwork:null };
 const paths={dashboard:'Bosh sahifa',products:'Mahsulotlar',ai:'AI Studio',integrations:'Integratsiyalar',settings:'Sozlamalar'};
 const icons={
   grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
@@ -84,7 +84,11 @@ function integrations(){
         <form id="uzum-form" class="uzum-form" novalidate>
           <div class="form-group"><label for="uzum-token">Uzum API kaliti *</label><input id="uzum-token" class="field" name="token" type="password" maxlength="4096" autocomplete="off" spellcheck="false" placeholder="Uzum API kalitini shu yerga qo‘ying" required aria-describedby="uzum-feedback"><span id="uzum-feedback" class="help" role="status" aria-live="polite">Avval sotuvchi kabinetining «API kalitlar» bo‘limida kalit yarating, so‘ng shu maydonga joylang. Kalitni chatga yubormang.</span></div>
           <div class="integration-actions"><button id="uzum-submit" type="submit" class="btn btn-primary" ${busy?'disabled':''}>${ico('link',16)} ${busy?'Tekshirilmoqda...':'Uzum Market’ga ulash'}</button><a class="btn" href="https://seller.uzum.uz/" target="_blank" rel="noopener noreferrer">${ico('external',15)} Sotuvchi kabineti</a></div>
-        </form>`}
+        </form>
+        <div class="integration-network">
+          ${btn('uzum-network', `${ico('info',15)} Tarmoqni tekşirish`,'btn-sm','type="button"')}
+          <p id="uzum-network-result" class="network-status" role="status" aria-live="polite">${state.uzumNetwork ? esc(state.uzumNetwork) : 'Ulanish amalga oshmasa, Uzum serveriga ulanish holatini tekshiring.'}</p>
+        </div>`}
     </section>
     ${other.map(m=>`<section class="panel integration-card"><div class="integration-head"><div class="market-logo ${m[1]}">${m[2]}</div><div><h2>${m[0]}</h2><p>Integratsiya hali tayyor emas</p></div></div><p>Ushbu marketpleysni ulash keyingi bosqichda qo‘shiladi.</p><div class="status"><span class="badge">${ico('clock',13)} Ulanmagan</span><a class="btn btn-sm" target="_blank" rel="noopener noreferrer" href="${m[3]}">${ico('external',14)} Sotuvchi kabineti</a></div></section>`).join('')}
   </div>
@@ -123,6 +127,66 @@ async function clickAction(action,node){
  case 'export':csvExport();break;
  case 'copy-ai':{const d=state.aiDraft;if(!d)return;const text=[d.title,d.short,d.description,d.keywords.join(', ')].join('\n\n');try{await navigator.clipboard.writeText(text);toast('Matn nusxalandi')}catch{toast('Nusxalab bo‘lmadi',true)}break}
  case 'ai-to-product':{const d=state.aiDraft;if(!d)return;state.modal={product:{...defaultProduct(),title:d.title,description:d.description}};render();break}
+ case 'uzum-network': {
+   const target=$('#uzum-network-result');
+   if(target)target.textContent='Cloudflare serveridan Uzum API manzili tekshirilmoqda...';
+   node.disabled=true;
+   try {
+     const result=await api('/api/integrations/uzum/network');
+     if(result.reachable){
+       state.uzumNetwork='Cloudflare Uzum API manziliga chiqyapti. API kaliti va do‘kon ruxsatini tekshirish kerak.';
+     }else if(result.kind==='upstream_http'){
+       state.uzumNetwork='Uzum serveri HTTP '+result.http_status+' qaytardi. Tarmoq yoki IP cheklovi bo‘lishi mumkin.';
+     }else if(result.kind==='timeout'){
+       state.uzumNetwork='Cloudflare serveridan Uzum API javobi 9 soniyada kelmadi. Tarmoq yoki server muammosi.';
+     }else{
+       state.uzumNetwork='Cloudflare serveridan Uzum API manziliga chiqib bo‘lmadi. Bu kalitdan mustaqil tarmoq muammosi.';
+     }
+     if(target)target.textContent=state.uzumNetwork;
+   }catch(e){
+     state.uzumNetwork='Tarmoqni tekshirib bo‘lmadi: '+e.message;
+     if(target)target.textContent=state.uzumNetwork;
+   }finally{if(node.isConnected)node.disabled=false}
+   break;
+ }
+ case 'uzum-check':
+ case 'uzum-sync': {
+   if(state.integrationBusy)return;
+   state.integrationBusy=true;
+   node.disabled=true;
+   const original=node.innerHTML;
+   node.textContent='Tekshirilmoqda...';
+   try {
+     const path=action==='uzum-check'?'/api/integrations/uzum/check':'/api/integrations/uzum/sync';
+     const result=await api(path,{method:'POST'});
+     await loadUzum();
+     if(state.showUzumProducts)await loadUzumProducts();
+     if(result.results?.some(x=>x.error)) toast('Ba’zi do‘konlarning mahsulotlarini olishda xatolik yuz berdi',true);
+     else toast(action==='uzum-check'?'Ulanish tasdiqlandi':'Mahsulotlar yuklandi');
+   }catch(e){toast(e.message,true)}
+   finally{
+     state.integrationBusy=false;
+     if(node.isConnected){node.disabled=false;node.innerHTML=original}
+     if(state.page==='integrations')render();
+   }
+   break;
+ }
+ case 'uzum-products':{
+   if(state.showUzumProducts){state.showUzumProducts=false;state.uzumProducts=[];render();break}
+   try{await loadUzumProducts();state.showUzumProducts=true;render()}
+   catch(e){toast(e.message,true)}
+   break;
+ }
+ case 'uzum-disconnect':{
+   if(!confirm('Uzum Market ulanishi va mahsulotlarning yuklangan nusxalari o‘chirilsinmi?'))return;
+   try{
+     await api('/api/integrations/uzum',{method:'DELETE'});
+     state.uzumProducts=[];state.showUzumProducts=false;
+     await loadUzum();
+     toast('Uzum Market ulanishi uzildi');
+   }catch(e){toast(e.message,true)}
+   break;
+ }
  case 'logout':try{await api('/api/logout',{method:'POST'});state.authorized=false;state.modal=null;render()}catch(e){toast(e.message,true)}break;
  }
 }
