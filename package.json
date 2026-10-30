@@ -1,17 +1,17 @@
 {
   "name": "sellerai",
-  "version": "0.4.1",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run db:local && wrangler dev --local",
-    "deploy": "wrangler deploy",
-    "db:local": "wrangler d1 migrations apply DB --local",
-    "db:remote": "wrangler d1 migrations apply DB --remote",
-    "check": "node --check src/worker.js && node --check src/uzum.js && node --check src/relay-client.js && node --check netlify/functions/uzum-relay.mjs && node --check public/app.js",
+    "dev": "netlify dev",
+    "check": "node --check netlify/functions/sellerai.mjs && node --check netlify/lib/common.mjs && node --check netlify/lib/uzum.mjs && node --check netlify/lib/migration.mjs && node --check public/app.js",
     "test": "node --test"
   },
-  "devDependencies": {
-    "wrangler": "^4.50.0"
+  "devDependencies": {},
+  "dependencies": {
+    "@netlify/database": "latest",
+    "@netlify/blobs": "^11.1.7",
+    "openai": "^7.45.1"
   }
 }
