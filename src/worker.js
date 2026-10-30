@@ -1,3 +1,4 @@
+import { handleUzum } from './uzum.js';
 const SESSION_COOKIE = 'sellerai_session';
 const SESSION_LENGTH = 60 * 60 * 10;
 const PRODUCT_COLS = 'id,sku,title,category,description,price,cost,stock,status,image_key,image_url,variants_json,created_at,updated_at';
@@ -110,6 +111,8 @@ async function api(req, env) {
   if (!await authorized(req, env)) return fail('Avval tizimga kiring', 401);
   if (path === '/api/logout' && method === 'POST') return response({ ok: true }, 200, {'Set-Cookie': `${SESSION_COOKIE}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict`});
   if (path === '/api/me' && method === 'GET') return response({ authenticated:true, product: 'SellerAI' });
+  const uzumResult = await handleUzum(req, env, path, method);
+  if (uzumResult) return uzumResult;
   if (path === '/api/stats' && method === 'GET') {
     const stats = await env.DB.prepare(`SELECT COUNT(*) total, COALESCE(SUM(CASE WHEN status='ready' THEN 1 ELSE 0 END),0) ready, COALESCE(SUM(stock),0) stock, COALESCE(SUM(stock*cost),0) capital, COALESCE(SUM(stock*price),0) potential_revenue FROM products`).first();
     const activity = await env.DB.prepare('SELECT id,product_id,action,detail,created_at FROM activity ORDER BY created_at DESC LIMIT 8').all();
