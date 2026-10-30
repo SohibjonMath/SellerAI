@@ -1,6 +1,6 @@
 {
   "name": "sellerai",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,7 +8,7 @@
     "deploy": "wrangler deploy",
     "db:local": "wrangler d1 migrations apply DB --local",
     "db:remote": "wrangler d1 migrations apply DB --remote",
-    "check": "node --check src/worker.js && node --check src/uzum.js && node --check public/app.js",
+    "check": "node --check src/worker.js && node --check src/uzum.js && node --check src/relay-client.js && node --check relay/server.mjs && node --check public/app.js",
     "test": "node --test"
   },
   "devDependencies": {
