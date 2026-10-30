@@ -2,7 +2,7 @@ const $ = s => document.querySelector(s);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = v => new Intl.NumberFormat('uz-UZ').format(Number(v)||0);
 const sum = v => `${fmt(v)} so‘m`;
-const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false,uzumNetwork:null };
+const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false,uzumNetwork:null,migrationBusy:false,migrationStatus:'' };
 const paths={dashboard:'Bosh sahifa',products:'Mahsulotlar',ai:'AI Studio',integrations:'Integratsiyalar',settings:'Sozlamalar'};
 const icons={
   grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
@@ -44,8 +44,8 @@ async function api(path,opts={}){
   return data;
 }
 function brand(){return `<div class="brand-mark">${ico('chart',24)}</div><div><div class="brand-name">Seller<span>AI</span></div><div class="brand-sub">Marketplace control</div></div>`}
-function loginView(){return `<div class="login-page"><section class="login-visual"><div style="display:flex;align-items:center;gap:11px">${brand()}</div><div><div class="eyebrow" style="color:#ff964f;margin-bottom:15px">YANGI AVLOD SAVDO PANELI</div><h1>Marketpleysda savdoni <span>aqlliroq</span> boshqaring.</h1><p>Mahsulotlaringiz, ombor hisobingiz va matn tayyorlash vositalari — barchasi yagona ixcham ish joyida.</p></div><div class="login-stats">SellerAI • Xavfsiz kirish • Cloudflare platformasi</div></section><main class="login-main"><div class="login-card"><div class="eyebrow">SELLERAI KABINETI</div><h2>Xush kelibsiz</h2><p>Boshqaruv paneliga kirish uchun administrator parolini kiriting.</p><form id="login-form"><label for="login-pass">Administrator paroli</label><input id="login-pass" type="password" name="password" autocomplete="current-password" class="field" placeholder="Parolingizni kiriting" required minlength="12"><button type="submit" class="btn btn-primary" id="login-submit">${ico('lock',17)} Tizimga kirish</button></form>${state.configError?`<p class="error" style="margin-top:15px">${esc(state.configError)}</p>`:''}<div class="login-footer">Kirish faqat ruxsat berilgan administrator uchun.</div></div></main></div><div id="toast-area" class="toast-area"></div>`}
-function shell(content){return `<div class="app-shell"><aside class="sidebar ${state.mobile?'open':''}"><div class="brand">${brand()}<button data-action="mobile-close" class="icon-button close-mobile" aria-label="Menyuni yopish">${ico('close')}</button></div><div class="menu-label">BOSHQARUV</div><nav class="nav">${[['dashboard','grid'],['products','box'],['ai','sparkle'],['integrations','link'],['settings','gear']].map(([key,icon])=>`<button class="nav-item ${state.page===key?'active':''}" data-page="${key}">${ico(icon,19)} ${paths[key]}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-plan"><div><span class="small-dot"></span><strong>SellerAI 0.4.1</strong></div><p>Uzum Market integratsiyasi sozlanmaguncha mahsulotlar mahalliy katalogda saqlanadi.</p></div><div class="sidebar-footer">© 2026 SellerAI</div></div></aside><div class="main"><header class="topbar"><button class="icon-button mobile-menu" data-action="mobile-open" aria-label="Menyuni ochish">${ico('menu',22)}</button><div class="breadcrumb">SellerAI / <b>${paths[state.page]}</b></div><div class="topbar-right"><span class="date">${esc(new Intl.DateTimeFormat('uz-UZ',{day:'numeric',month:'long',year:'numeric'}).format(new Date()))}</span><div class="user-avatar">SA</div></div></header><main class="content">${content}</main></div></div>${state.modal?modalView():''}<div id="toast-area" class="toast-area"></div>`}
+function loginView(){return `<div class="login-page"><section class="login-visual"><div style="display:flex;align-items:center;gap:11px">${brand()}</div><div><div class="eyebrow" style="color:#ff964f;margin-bottom:15px">YANGI AVLOD SAVDO PANELI</div><h1>Marketpleysda savdoni <span>aqlliroq</span> boshqaring.</h1><p>Mahsulotlaringiz, ombor hisobingiz va matn tayyorlash vositalari — barchasi yagona ixcham ish joyida.</p></div><div class="login-stats">SellerAI • Xavfsiz kirish • Netlify platformasi</div></section><main class="login-main"><div class="login-card"><div class="eyebrow">SELLERAI KABINETI</div><h2>Xush kelibsiz</h2><p>Boshqaruv paneliga kirish uchun administrator parolini kiriting.</p><form id="login-form"><label for="login-pass">Administrator paroli</label><input id="login-pass" type="password" name="password" autocomplete="current-password" class="field" placeholder="Parolingizni kiriting" required minlength="12"><button type="submit" class="btn btn-primary" id="login-submit">${ico('lock',17)} Tizimga kirish</button></form>${state.configError?`<p class="error" style="margin-top:15px">${esc(state.configError)}</p>`:''}<div class="login-footer">Kirish faqat ruxsat berilgan administrator uchun.</div></div></main></div><div id="toast-area" class="toast-area"></div>`}
+function shell(content){return `<div class="app-shell"><aside class="sidebar ${state.mobile?'open':''}"><div class="brand">${brand()}<button data-action="mobile-close" class="icon-button close-mobile" aria-label="Menyuni yopish">${ico('close')}</button></div><div class="menu-label">BOSHQARUV</div><nav class="nav">${[['dashboard','grid'],['products','box'],['ai','sparkle'],['integrations','link'],['settings','gear']].map(([key,icon])=>`<button class="nav-item ${state.page===key?'active':''}" data-page="${key}">${ico(icon,19)} ${paths[key]}</button>`).join('')}</nav><div class="sidebar-bottom"><div class="sidebar-plan"><div><span class="small-dot"></span><strong>SellerAI 1.0.0</strong></div><p>Uzum Market integratsiyasi sozlanmaguncha mahsulotlar mahalliy katalogda saqlanadi.</p></div><div class="sidebar-footer">© 2026 SellerAI</div></div></aside><div class="main"><header class="topbar"><button class="icon-button mobile-menu" data-action="mobile-open" aria-label="Menyuni ochish">${ico('menu',22)}</button><div class="breadcrumb">SellerAI / <b>${paths[state.page]}</b></div><div class="topbar-right"><span class="date">${esc(new Intl.DateTimeFormat('uz-UZ',{day:'numeric',month:'long',year:'numeric'}).format(new Date()))}</span><div class="user-avatar">SA</div></div></header><main class="content">${content}</main></div></div>${state.modal?modalView():''}<div id="toast-area" class="toast-area"></div>`}
 function title(head,desc,actions=''){return `<div class="topline"><div><div class="eyebrow">SELLERAI / ${esc(paths[state.page]).toUpperCase()}</div><h1>${head}</h1><p class="lede">${desc}</p></div>${actions?`<div class="btn-group">${actions}</div>`:''}</div>`}
 function metric(icon,label,value,sub){return `<article class="stat"><div class="stat-head"><span class="stat-caption">${label}</span><div class="stat-icon">${ico(icon,19)}</div></div><div class="stat-value">${value}</div><div class="stat-hint">${sub}</div></article>`}
 function dashboard(){const st=state.stats||{total:0,ready:0,stock:0,capital:0,potential_revenue:0};return `${title('Boshqaruv markazi','Mahsulotlar va ombor holatini bir qarashda kuzating.',btn('new-product',`${ico('plus',16)} Yangi mahsulot`,'btn-primary'))}<div class="stat-grid">${metric('box','Jami mahsulotlar',fmt(st.total),'Katalogdagi SKU soni')}${metric('check','Tayyor kartalar',fmt(st.ready),'Joylashga tayyor belgilangan')}${metric('layers','Ombor qoldig‘i',fmt(st.stock),'Barcha mahsulotlar bo‘yicha')}${metric('coins','Ombordagi tannarx',sum(st.capital),'Kiritilgan tannarx asosida')}</div><div class="two-col"><section class="panel"><div class="panel-head"><div><h2>Tezkor amallar</h2><p class="panel-sub">Kundalik savdo vazifalariga o‘ting</p></div></div><div class="panel-body"><div class="actions"><button data-action="new-product" class="action-card"><span class="action-ico">${ico('plus',20)}</span><span><b>Mahsulot qo‘shish</b><small>Karta va variantlarni yarating</small></span></button><button data-page="ai" class="action-card"><span class="action-ico">${ico('sparkle',20)}</span><span><b>AI tavsif tayyorlash</b><small>Nom, tavsif va kalit so‘zlar</small></span></button><button data-page="products" class="action-card"><span class="action-ico">${ico('layers',20)}</span><span><b>Omborni tekshirish</b><small>Qoldiq va tannarx hisobi</small></span></button><button data-page="integrations" class="action-card"><span class="action-ico">${ico('link',20)}</span><span><b>Marketpleyslar</b><small>Ulash holati va imkoniyatlar</small></span></button></div><div class="info-note" style="margin-top:18px">${ico('info',17)} <span>Taxminiy sotuv qiymati: <b>${sum(st.potential_revenue)}</b>. Bu buyurtma yoki real daromad emas, ombor qoldig‘i × sotuv narxi hisobidir.</span></div></div></section><section class="panel"><div class="panel-head"><div><h2>So‘nggi harakatlar</h2><p class="panel-sub">Mahsulotlar tarixidagi oxirgi o‘zgarishlar</p></div></div><div class="panel-body">${state.activity.length?state.activity.map(a=>`<div class="activity-row"><span class="activity-icon">${ico(a.action==='deleted'?'trash':a.action==='created'?'plus':'edit',16)}</span><span style="min-width:0"><b>${a.action==='created'?'Mahsulot qo‘shildi':a.action==='deleted'?'Mahsulot o‘chirildi':'Mahsulot yangilandi'}</b><p>${esc(a.detail)}</p></span><span class="activity-time">${esc((a.created_at||'').slice(0,16))}</span></div>`).join(''):`<div class="empty" style="padding:25px 12px">${ico('clock',30)}<h3>Hozircha harakatlar yo‘q</h3><p>Birinchi mahsulotni qo‘shganingizdan keyin harakatlar shu yerda ko‘rinadi.</p></div>`}</div></section></div>`}
@@ -106,7 +106,41 @@ async function loadUzumProducts(){
   const data=await api('/api/integrations/uzum/products');
   state.uzumProducts=data.snapshots||[];
 }
-function settings(){return `${title('Sozlamalar','Hisob xavfsizligi va loyiha holati.')}<div class="page-grid"><section class="panel"><div class="panel-head"><div><h2>Administrator</h2><p class="panel-sub">Maxfiy parol Cloudflare secret orqali boshqariladi</p></div>${ico('lock',19)}</div><div class="panel-body setting-info"><div class="setting-row"><div><b>Hisob turi</b><small>Yakka administrator, yopiq boshqaruv paneli</small></div><span class="badge badge-ready">Faol</span></div><div class="setting-row"><div><b>Ma’lumotlar bazasi</b><small>Cloudflare D1</small></div>${ico('check',18)}</div><div class="setting-row"><div><b>Mahsulot rasmlari</b><small>Cloudflare R2</small></div>${ico('check',18)}</div><div class="setting-row"><div><b>AI xizmat</b><small>Cloudflare Workers AI</small></div>${ico('sparkle',18)}</div><div class="setting-row"><div><b>Hisobdan chiqish</b><small>Joriy administrator sessiyasini yakunlash</small></div>${btn('logout',`${ico('logout',15)} Chiqish`,'btn-sm')}</div></div></section><section class="panel"><div class="panel-head"><h2>Ma’lumotlar va versiya</h2></div><div class="panel-body setting-info"><div class="setting-row"><div><b>SellerAI</b><small>Versiya 0.4.1</small></div><span class="badge">MVP</span></div><div class="setting-row"><div><b>Mahsulotlar</b><small>${fmt(state.products.length)} ta karta</small></div>${btn('export',`${ico('download',14)} CSV`,'btn-sm')}</div><div class="info-note">${ico('info',17)} <span>O‘zgartirishlar Cloudflare D1 bazasida saqlanadi. Ishlash uchun Cloudflare bog‘lanmalari va administrator paroli sozlangan bo‘lishi shart.</span></div></div></section></div>`}
+function settings(){
+  return `
+  ${title('Sozlamalar','Xavfsizlik, xizmatlar va mavjud ma’lumotlarni ko‘chirish.')}
+  <div class="page-grid">
+    <section class="panel">
+      <div class="panel-head"><h2>Administrator</h2>${ico('lock',19)}</div>
+      <div class="panel-body setting-info">
+        <div class="setting-row"><div><b>Hisob</b><small>Yakka administrator, yopiq boshqaruv paneli</small></div><span class="badge badge-ready">Faol</span></div>
+        <div class="setting-row"><div><b>Ma’lumotlar bazasi</b><small>Netlify Database (Postgres)</small></div>${ico('box',18)}</div>
+        <div class="setting-row"><div><b>Rasmlar</b><small>Netlify Blobs</small></div>${ico('image',18)}</div>
+        <div class="setting-row"><div><b>AI Studio</b><small>Netlify AI Gateway</small></div>${ico('sparkle',18)}</div>
+        <div class="setting-row"><div><b>Hisobdan chiqish</b><small>Joriy sessiyani yakunlash</small></div>${btn('logout',ico('logout',15)+' Chiqish','btn-sm')}</div>
+      </div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Ma’lumotlar va versiya</h2></div>
+      <div class="panel-body setting-info">
+        <div class="setting-row"><div><b>SellerAI</b><small>Versiya 1.0.0</small></div><span class="badge badge-ready">Netlify</span></div>
+        <div class="setting-row"><div><b>Mahsulotlar</b><small>${fmt(state.products.length)} ta karta</small></div>${btn('export',ico('download',14)+' CSV','btn-sm')}</div>
+        <div class="info-note">${ico('info',17)} <span>Ma’lumotlar Netlify bazasida saqlanadi. Oldingi Cloudflare tizimi ko‘chirish yakunlanmaguncha o‘chirilmaydi.</span></div>
+      </div>
+    </section>
+  </div>
+  <section class="panel migration-panel">
+    <div class="panel-head"><div><h2>Eski ma’lumotlarni ko‘chirish</h2><p class="panel-sub">Cloudflare'dagi mahsulotlar, rasmlar, variantlar va harakatlar tarixini saqlab o‘tkazing.</p></div>${ico('download',20)}</div>
+    <div class="panel-body">
+      <p class="muted migration-explainer">Eski SellerAI administrator parolini kiriting. U faqat ko‘chirish jarayonida ishlatiladi, Netlify bazasiga saqlanmaydi. Mavjud yangi mahsulotlar o‘chirilmaydi.</p>
+      <form id="migration-form" class="migration-form" autocomplete="off">
+        <div class="form-group"><label for="source-password">Eski Cloudflare administrator paroli</label><input id="source-password" name="sourcePassword" type="password" class="field" minlength="12" required autocomplete="off" placeholder="Eski parolni kiriting"></div>
+        <button type="submit" class="btn btn-primary" id="migration-submit" ${state.migrationBusy?'disabled':''}>${ico('download',16)} ${state.migrationBusy?'Ko‘chirilmoqda...':'Ma’lumotlarni ko‘chirish'}</button>
+      </form>
+      <p id="migration-result" class="migration-result" role="status" aria-live="polite">${esc(state.migrationStatus||'Ko‘chirish boshlanmagan.')}</p>
+    </div>
+  </section>`;
+}
 function defaultProduct(){return {id:'',title:'',sku:'',category:'',description:'',price:0,cost:0,stock:0,status:'draft',image_key:'',image_url:'',variants:[]}}
 function modalView(){const p=state.modal?.product||defaultProduct();const editing=Boolean(p.id);return `<div class="modal-backdrop" id="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-heading"><div class="modal-title"><h2 id="modal-heading">${editing?'Mahsulotni tahrirlash':'Yangi mahsulot'}</h2><button class="icon-button" data-action="close-modal" aria-label="Yopish">${ico('close',19)}</button></div><form id="product-form" style="display:contents"><div class="modal-scroll"><div class="form-grid"><div class="form-group span2"><label for="p-title">Mahsulot nomi *</label><input class="field" id="p-title" name="title" maxlength="160" required value="${esc(p.title)}" placeholder="Mahsulotning to‘liq nomi"></div><div class="form-group"><label for="p-sku">SKU / Artikul *</label><input class="field" id="p-sku" name="sku" maxlength="70" required pattern="[a-zA-Z0-9._-]+" value="${esc(p.sku)}" placeholder="MASALAN-001"></div><div class="form-group"><label for="p-category">Kategoriya</label><input class="field" id="p-category" name="category" maxlength="80" value="${esc(p.category)}" placeholder="Hammom aksessuarlari"></div><div class="form-group"><label for="p-price">Sotuv narxi (so‘m)</label><input class="field" id="p-price" name="price" type="number" min="0" step="1" required value="${esc(p.price)}"></div><div class="form-group"><label for="p-cost">Tannarx (so‘m)</label><input class="field" id="p-cost" name="cost" type="number" min="0" step="1" required value="${esc(p.cost)}"></div><div class="form-group"><label for="p-stock">Ombor qoldig‘i</label><input class="field" id="p-stock" name="stock" type="number" min="0" step="1" required value="${esc(p.stock)}"></div><div class="form-group"><label for="p-status">Karta holati</label><select id="p-status" name="status"><option value="draft" ${p.status==='draft'?'selected':''}>Qoralama</option><option value="ready" ${p.status==='ready'?'selected':''}>Tayyor</option></select></div><div class="form-group span2"><label for="p-description">Tavsif</label><textarea id="p-description" name="description" maxlength="8000" placeholder="Mahsulot xususiyatlari va tavsifi">${esc(p.description)}</textarea></div><div class="form-group span2"><label for="p-image-url">Mahsulot rasmi</label><input class="field" id="p-image-url" name="image_url" type="url" maxlength="1500" placeholder="https://... (ixtiyoriy)" value="${esc(p.image_url)}"><input class="field" id="p-image-file" type="file" accept="image/jpeg,image/png,image/webp"><span class="help">JPG, PNG yoki WebP fayl — 5 MB gacha. Fayl yuklansa tashqi URL o‘rniga o‘sha ishlatiladi.</span>${img(p)?`<div class="preview-product"><img class="preview-image" id="preview-upload" src="${esc(img(p))}" alt="Mahsulot rasmi"><span class="muted" style="font-size:12px">Joriy rasm</span><button type="button" class="btn btn-sm btn-danger" data-action="remove-image">Olib tashlash</button></div>`:`<div class="preview-product" id="preview-wrap" style="display:none"><img class="preview-image" id="preview-upload" alt="Yangi rasm"><span class="muted" style="font-size:12px">Tanlangan rasm</span></div>`}</div><div class="form-group span2"><label>Variantlar (rang, o‘lcham va boshqalar)</label><div id="variant-list">${(p.variants||[]).map(v=>variantRow(v.name,v.value)).join('')}</div>${btn('add-variant',`${ico('plus',15)} Variant qo‘shish`,'btn-sm','type="button"')}</div></div></div><div class="modal-footer"><button class="btn" type="button" data-action="close-modal">Bekor qilish</button><button class="btn btn-primary" type="submit" id="save-product">${ico('check',16)} ${editing?'Saqlash':'Mahsulot qo‘shish'}</button></div></form></section></div>`}
 function variantRow(name='',value=''){return `<div class="variant-line"><input class="field" name="variant-name" maxlength="50" placeholder="Masalan, Rang" value="${esc(name)}" style="padding:10px"><input class="field" name="variant-value" maxlength="100" placeholder="Masalan, Pushti" value="${esc(value)}" style="padding:10px"><button class="icon-button" type="button" data-action="remove-variant" aria-label="Variantni olib tashlash">${ico('trash',16)}</button></div>`}
@@ -129,14 +163,14 @@ async function clickAction(action,node){
  case 'ai-to-product':{const d=state.aiDraft;if(!d)return;state.modal={product:{...defaultProduct(),title:d.title,description:d.description}};render();break}
  case 'uzum-network': {
    const target=$('#uzum-network-result');
-   if(target)target.textContent='Cloudflare serveridan Uzum API manzili tekshirilmoqda...';
+   if(target)target.textContent='Netlify serveridan Uzum API manzili tekshirilmoqda...';
    node.disabled=true;
    try {
      const result=await api('/api/integrations/uzum/network');
      if(result.reachable){
        state.uzumNetwork=result.mode==='relay'
          ? 'Oraliq server orqali Uzum API bilan aloqa ishlayapti. API kalit orqali ulanishni sinab ko‘ring.'
-         : 'Cloudflare Uzum API manziliga chiqyapti. API kaliti va do‘kon ruxsatini tekshirish kerak.';
+         : 'Netlify Uzum API manziliga chiqyapti. API kaliti va do‘kon ruxsatini tekshirish kerak.';
      }else if(result.mode==='relay' && result.relay_reachable){
        state.uzumNetwork='Oraliq server ishlayapti, lekin Uzum API bilan aloqa qila olmayapti (HTTP '+(result.http_status??'—')+').';
      }else if(result.mode==='relay'){
@@ -144,9 +178,9 @@ async function clickAction(action,node){
      }else if(result.kind==='upstream_http'){
        state.uzumNetwork='Uzum serveri HTTP '+result.http_status+' qaytardi. Tarmoq yoki IP cheklovi bo‘lishi mumkin.';
      }else if(result.kind==='timeout'){
-       state.uzumNetwork='Cloudflare serveridan Uzum API javobi 9 soniyada kelmadi. Tarmoq yoki server muammosi.';
+       state.uzumNetwork='Netlify serveridan Uzum API javobi 9 soniyada kelmadi. Tarmoq yoki server muammosi.';
      }else{
-       state.uzumNetwork='Cloudflare Uzum API manziliga chiqolmayapti. Muqobil server hali ulanmagan; bu API kalit xatosi emas.';
+       state.uzumNetwork='Netlify Uzum API manziliga chiqolmayapti. Muqobil server hali ulanmagan; bu API kalit xatosi emas.';
      }
      if(target)target.textContent=state.uzumNetwork;
    }catch(e){
@@ -242,6 +276,47 @@ document.addEventListener('submit',async event=>{
     }finally{
       state.integrationBusy=false;
       if(submit?.isConnected){submit.disabled=false;submit.innerHTML=ico('link',16)+' Uzum Market’ga ulash'}
+    }
+    return;
+  }
+  if(event.target.id==='migration-form'){
+    event.preventDefault();
+    if(state.migrationBusy)return;
+    const password=String(new FormData(event.target).get('sourcePassword')||'');
+    if(password.length<12){toast('Eski administrator parolini kiriting',true);return}
+    if(!confirm('Eski Cloudflare ma’lumotlarini Netlify bazasiga ko‘chirish boshlansinmi? Yangi ma’lumotlar o‘chirilmaydi.'))return;
+    state.migrationBusy=true;
+    const button=$('#migration-submit'),target=$('#migration-result');
+    if(button){button.disabled=true;button.textContent='Ko‘chirilmoqda...'}
+    let offset=0,imported=0,images=0,activities=0;
+    try{
+      for(let i=0;i<10000;i++){
+        const part=await api('/api/migration/cloudflare',{method:'POST',
+          body:JSON.stringify({sourcePassword:password,offset})});
+        imported+=part.products||0;images+=part.images||0;activities+=part.activities||0;
+        const total=Math.max(part.totalProducts||0,part.totalActivities||0);
+        state.migrationStatus='O‘tkazilmoqda: '+Math.min(part.nextOffset,total)+'/'+total+
+          ' · '+imported+' ta mahsulot, '+images+' ta rasm, '+activities+' ta harakat';
+        if(target)target.textContent=state.migrationStatus;
+        if(part.errors?.length)throw Error('Ba’zi yozuvlar o‘tmadi: '+part.errors.map(e=>e.sku||e.activity).join(', ')+'. Qayta urinib ko‘ring.');
+        if(part.complete){
+          state.migrationStatus='Ko‘chirish tugadi: '+imported+' ta mahsulot, '+images+
+            ' ta rasm, '+activities+' ta harakat qayta ishlandi. Yangi katalogni tekshiring.';
+          if(target)target.textContent=state.migrationStatus;
+          toast('Ma’lumotlar ko‘chirildi');
+          break;
+        }
+        offset=part.nextOffset;
+        if(i===9999)throw Error('Ko‘chirish hajmi chegarasiga yetdi');
+      }
+      await reload();
+    }catch(e){
+      state.migrationStatus='Ko‘chirish to‘xtadi: '+e.message;
+      if(target)target.textContent=state.migrationStatus;
+      toast(e.message,true);
+    }finally{
+      state.migrationBusy=false;
+      if(button?.isConnected){button.disabled=false;button.innerHTML=ico('download',16)+' Ma’lumotlarni ko‘chirish'}
     }
     return;
   }
