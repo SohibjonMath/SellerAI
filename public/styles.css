@@ -27,3 +27,7 @@
 /* Visible connection feedback; never silently ignore an empty API key. */
 .uzum-form .field[aria-invalid="true"]{border-color:var(--red);outline-color:var(--red)}
 .uzum-form .field-error{color:var(--red);font-weight:600}
+
+.integration-network{margin-top:16px;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.integration-network .network-status{font-size:11px;color:var(--muted);line-height:1.6;flex:1;min-width:180px;margin:3px 0 0}
+@media(max-width:480px){.integration-network .btn{width:100%}}
