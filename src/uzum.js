@@ -59,16 +59,49 @@ function shopsFrom(body) {
     return { id, name };
   }).filter(shop => /^\d+$/.test(shop.id));
 }
-function productsFrom(body) {
-  const list = listFrom(body, ['products', 'productList', 'skuList', 'skus', 'sku', 'content', 'data', 'payload', 'result', 'items', 'rows']);
-  if (!list) throw Error('Uzum mahsulotlar javobining formati aniqlanmadi');
-  return { products: list.slice(0, 300).map(p => ({
-    id: str(p?.id ?? p?.productId ?? p?.skuId, 80),
-    sku: str(p?.sku ?? p?.skuTitle ?? p?.barcode ?? p?.skuId, 100),
-    title: str(p?.title ?? p?.name ?? p?.productName ?? p?.skuTitle, 220),
-    price: Number.isFinite(Number(p?.price)) ? Number(p.price) : null,
-    stock: Number.isFinite(Number(p?.stock ?? p?.quantity)) ? Number(p.stock ?? p.quantity) : null
-  })), partial: list.length > 300 };
+function numeric(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+// Uzum documents AllProducts.productList[], with each card containing skuList[].
+// Show one row per SKU, not one placeholder row per product card.
+export function productsFrom(body) {
+  if (!body || !Array.isArray(body.productList)) throw Error('Uzum mahsulotlar javobi kutilgan formatda emas');
+  const products = [];
+  for (const card of body.productList) {
+    const variants = Array.isArray(card?.skuList) && card.skuList.length ? card.skuList : [null];
+    for (const sku of variants) {
+      products.push({
+        id: str(sku?.skuId ?? card?.productId, 80),
+        product_id: str(card?.productId, 80),
+        sku: str(sku?.skuId ?? sku?.barcode ?? '', 100),
+        title: str(sku?.skuFullTitle ?? sku?.skuTitle ?? card?.title ?? '', 220),
+        price: numeric(sku?.price),
+        stock: numeric(sku?.quantityActive ?? card?.quantityActive)
+      });
+    }
+  }
+  const total = numeric(body.totalProductsAmount);
+  return { products, cards: body.productList.length, total: total === null ? null : Math.max(0, total) };
+}
+// Fetch bounded pages, showing partial imports honestly instead of making an
+// unbounded batch of calls inside one Worker request.
+async function fetchShopProducts(token, shopId) {
+  const size = 100, maxPages = 5;
+  const products = [];
+  let fetchedCards = 0, total = null, complete = false;
+  for (let page = 0; page < maxPages; page++) {
+    const batch = productsFrom(await uzumGet(token, '/v1/product/shop/' + encodeURIComponent(shopId) + '?page=' + page + '&size=' + size));
+    products.push(...batch.products);
+    fetchedCards += batch.cards;
+    if (batch.total !== null) total = batch.total;
+    if (batch.cards < size || (total !== null && fetchedCards >= total)) {
+      complete = true;
+      break;
+    }
+  }
+  return { products, partial: !complete, total };
 }
 async function uzumGet(token, suffix) {
   const controller = new AbortController();
@@ -83,7 +116,8 @@ async function uzumGet(token, suffix) {
   } catch {
     throw Error('Uzum serveriga ulanib bo‘lmadi. Keyinroq qayta sinang');
   } finally { clearTimeout(timeout); }
-  if (res.status === 401 || res.status === 403) throw Error('API token yaroqsiz yoki bu do‘konlarga ruxsat yo‘q');
+  if (res.status === 401 || res.status === 403) throw Error('API token yaroqsiz yoki do‘konlarga ruxsat yo‘q (HTTP ' + res.status + ')');
+  if (res.status === 429) throw Error('Uzum API so‘rovlar limiti tugadi. Keyinroq qayta urinib ko‘ring');
   if (!res.ok) throw Error('Uzum API javob bermadi (HTTP ' + res.status + ')');
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('json')) throw Error('Uzum API JSON qaytarmadi');
@@ -133,6 +167,7 @@ export async function handleUzum(req, env, path, method) {
       const token = str(body?.token, 4096);
       if (token.length < 16 || /[\r\n]/.test(token)) return error('Uzum API tokenini to‘g‘ri kiriting');
       const shops = shopsFrom(await uzumGet(token, '/v1/shops'));
+      if (!shops.length) return error('Uzum API tokeni uchun do‘kon topilmadi. API ruxsatlarini tekshiring', 403);
       const cipher = await seal(token, env.ADMIN_PASSWORD);
       await env.DB.prepare("INSERT INTO marketplace_connections (provider,token_cipher,shops_json,status,checked_at,updated_at) VALUES (?,?,?,'connected',datetime('now'),datetime('now')) ON CONFLICT(provider) DO UPDATE SET token_cipher=excluded.token_cipher,shops_json=excluded.shops_json,status='connected',checked_at=datetime('now'),last_sync_at=NULL,updated_at=datetime('now')").bind(PROVIDER, cipher, JSON.stringify(shops)).run();
       await env.DB.prepare('DELETE FROM marketplace_snapshots WHERE provider=?').bind(PROVIDER).run();
@@ -155,10 +190,10 @@ export async function handleUzum(req, env, path, method) {
       const results = [];
       for (const shop of shops.slice(0, 10)) {
         try {
-          const { products, partial } = productsFrom(await uzumGet(token, '/v1/product/shop/' + encodeURIComponent(shop.id)));
+          const { products, partial } = await fetchShopProducts(token, shop.id);
           await env.DB.prepare("INSERT INTO marketplace_snapshots (provider,shop_id,products_json,product_count,fetched_at) VALUES (?,?,?,?,datetime('now')) ON CONFLICT(provider,shop_id) DO UPDATE SET products_json=excluded.products_json,product_count=excluded.product_count,fetched_at=datetime('now')").bind(PROVIDER, shop.id, JSON.stringify(products), products.length).run();
           results.push({ shop_id: shop.id, count: products.length, partial });
-        } catch { results.push({ shop_id: shop.id, error: 'Mahsulotlar yuklanmadi' }); }
+        } catch (err) { results.push({ shop_id: shop.id, error: cleanError(err) }); }
       }
       await env.DB.prepare("UPDATE marketplace_connections SET last_sync_at=datetime('now') WHERE provider=?").bind(PROVIDER).run();
       return json({ connected: true, shops, results });
