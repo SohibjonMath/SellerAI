@@ -146,7 +146,7 @@ async function clickAction(action,node){
      }else if(result.kind==='timeout'){
        state.uzumNetwork='Cloudflare serveridan Uzum API javobi 9 soniyada kelmadi. Tarmoq yoki server muammosi.';
      }else{
-       state.uzumNetwork='Cloudflare serveridan Uzum API manziliga chiqib bo‘lmadi. Bu kalitdan mustaqil tarmoq muammosi.';
+       state.uzumNetwork='Cloudflare Uzum API manziliga chiqolmayapti. Muqobil server hali ulanmagan; bu API kalit xatosi emas.';
      }
      if(target)target.textContent=state.uzumNetwork;
    }catch(e){
