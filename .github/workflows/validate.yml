@@ -15,5 +15,7 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Verify JavaScript syntax
         run: npm run check
+      - name: Test integration behavior
+        run: npm test
       - name: Verify Worker bundle
         run: npx wrangler deploy --dry-run
