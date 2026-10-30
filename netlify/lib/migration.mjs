@@ -2,7 +2,7 @@ import { getStore } from '@netlify/blobs';
 import { json,fail,dbQuery,bodyJson,cleanProduct,PRODUCT_COLS } from './common.mjs';
 
 const SOURCE='https://sellerai.sohibjonmath.workers.dev';
-const BATCH=8;
+const BATCH=4;
 const images=()=>getStore({name:'sellerai-images',consistency:'strong'});
 
 async function getSource(password,path){
