@@ -134,7 +134,13 @@ async function clickAction(action,node){
    try {
      const result=await api('/api/integrations/uzum/network');
      if(result.reachable){
-       state.uzumNetwork='Cloudflare Uzum API manziliga chiqyapti. API kaliti va do‘kon ruxsatini tekshirish kerak.';
+       state.uzumNetwork=result.mode==='relay'
+         ? 'Oraliq server orqali Uzum API bilan aloqa ishlayapti. API kalit orqali ulanishni sinab ko‘ring.'
+         : 'Cloudflare Uzum API manziliga chiqyapti. API kaliti va do‘kon ruxsatini tekshirish kerak.';
+     }else if(result.mode==='relay' && result.relay_reachable){
+       state.uzumNetwork='Oraliq server ishlayapti, lekin Uzum API bilan aloqa qila olmayapti (HTTP '+(result.http_status??'—')+').';
+     }else if(result.mode==='relay'){
+       state.uzumNetwork='Uzum oraliq serveriga ulanib bo‘lmadi. Server sozlamalarini tekshiring.';
      }else if(result.kind==='upstream_http'){
        state.uzumNetwork='Uzum serveri HTTP '+result.http_status+' qaytardi. Tarmoq yoki IP cheklovi bo‘lishi mumkin.';
      }else if(result.kind==='timeout'){
