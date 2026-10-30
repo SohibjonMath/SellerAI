@@ -325,4 +325,4 @@ document.addEventListener('submit',async event=>{
     try{const data=await api('/api/ai/draft',{method:'POST',body:JSON.stringify(state.aiInput)});state.aiDraft=data.draft;toast('AI tavsif tayyor')}catch(e){toast(e.message,true)}finally{state.busy=false;render()}return;
   }
 });
-(async()=>{try{await api('/api/me');state.authorized=true;await reload()}catch(e){state.authorized=false;state.configError=/(sozlang|bog‘lanmagan)/.test(e.message)?e.message:'';render()}})();
+(async()=>{try{await api('/api/me');state.authorized=true;await reload()}catch(e){state.authorized=false;state.configError=/(sozlan|sozlang|bog‘lanmagan|Netlify Database|faol emas)/i.test(e.message)?e.message:'';render()}})();
