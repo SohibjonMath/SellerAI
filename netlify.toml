@@ -1,0 +1,7 @@
+[build]
+  publish = "relay/netlify-public"
+  command = "npm run check && npm test"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
