@@ -81,9 +81,9 @@ function integrations(){
         </div>
         ${u.last_sync_at?`<p class="sync-hint">So‘nggi sinxronlash: ${esc(u.last_sync_at)}</p>`:''}
       `:`<p>Uzum sotuvchi kabinetidan API token yarating. Ulanish tekshirilgandan keyingina token shifrlab saqlanadi.</p>
-        <form id="uzum-form" class="uzum-form">
-          <div class="form-group"><label for="uzum-token">API token</label><input id="uzum-token" class="field" name="token" type="password" minlength="16" maxlength="4096" autocomplete="off" placeholder="API tokeningizni kiriting" required></div>
-          <div class="integration-actions"><button type="submit" class="btn btn-primary" ${busy?'disabled':''}>${ico('link',16)} ${busy?'Tekshirilmoqda...':'Uzum Market’ga ulash'}</button><a class="btn" href="https://seller.uzum.uz/" target="_blank" rel="noopener noreferrer">${ico('external',15)} Sotuvchi kabineti</a></div>
+        <form id="uzum-form" class="uzum-form" novalidate>
+          <div class="form-group"><label for="uzum-token">Uzum API kaliti *</label><input id="uzum-token" class="field" name="token" type="password" maxlength="4096" autocomplete="off" spellcheck="false" placeholder="Uzum API kalitini shu yerga qo‘ying" required aria-describedby="uzum-feedback"><span id="uzum-feedback" class="help" role="status" aria-live="polite">Avval sotuvchi kabinetining «API kalitlar» bo‘limida kalit yarating, so‘ng shu maydonga joylang. Kalitni chatga yubormang.</span></div>
+          <div class="integration-actions"><button id="uzum-submit" type="submit" class="btn btn-primary" ${busy?'disabled':''}>${ico('link',16)} ${busy?'Tekshirilmoqda...':'Uzum Market’ga ulash'}</button><a class="btn" href="https://seller.uzum.uz/" target="_blank" rel="noopener noreferrer">${ico('external',15)} Sotuvchi kabineti</a></div>
         </form>`}
     </section>
     ${other.map(m=>`<section class="panel integration-card"><div class="integration-head"><div class="market-logo ${m[1]}">${m[2]}</div><div><h2>${m[0]}</h2><p>Integratsiya hali tayyor emas</p></div></div><p>Ushbu marketpleysni ulash keyingi bosqichda qo‘shiladi.</p><div class="status"><span class="badge">${ico('clock',13)} Ulanmagan</span><a class="btn btn-sm" target="_blank" rel="noopener noreferrer" href="${m[3]}">${ico('external',14)} Sotuvchi kabineti</a></div></section>`).join('')}
@@ -149,14 +149,30 @@ document.addEventListener('submit',async event=>{
     }catch(e){if(newlyUploadedKey)await api(`/api/media/${newlyUploadedKey}`,{method:'DELETE'}).catch(()=>{});toast(e.message,true)}finally{state.busy=false;const b=$('#save-product');if(b)b.disabled=false}return;
   }
   if(event.target.id==='uzum-form'){
-    event.preventDefault();if(state.integrationBusy)return;state.integrationBusy=true;
-    const token=String(new FormData(event.target).get('token')||'').trim();
-    render();
+    event.preventDefault();
+    if(state.integrationBusy)return;
+    const field=$('#uzum-token'),feedback=$('#uzum-feedback'),submit=$('#uzum-submit');
+    const token=String(field?.value||'').trim();
+    if(token.length<16){
+      if(feedback){feedback.textContent=token?'API kaliti juda qisqa. Uzum kabinetidan olingan to‘liq kalitni kiriting.':'Avval Uzum API kalitini kiriting. Kalitsiz ulanish mumkin emas.';feedback.classList.add('field-error')}
+      field?.setAttribute('aria-invalid','true');field?.focus();toast('Uzum API kalitini kiriting',true);
+      return;
+    }
+    state.integrationBusy=true;
+    if(submit){submit.disabled=true;submit.textContent='Ulanish tekshirilmoqda...'}
+    if(feedback){feedback.textContent='API kaliti tekshirilmoqda...';feedback.classList.remove('field-error')}
+    field?.removeAttribute('aria-invalid');
     try{
       await api('/api/integrations/uzum/connect',{method:'POST',body:JSON.stringify({token})});
       await loadUzum();toast('Uzum Market muvaffaqiyatli ulandi');
-    }catch(e){toast(e.message,true)}
-    finally{state.integrationBusy=false;render()}
+    }catch(e){
+      if(feedback){feedback.textContent=e.message;feedback.classList.add('field-error')}
+      field?.setAttribute('aria-invalid','true');
+      toast(e.message,true);
+    }finally{
+      state.integrationBusy=false;
+      if(submit?.isConnected){submit.disabled=false;submit.innerHTML=ico('link',16)+' Uzum Market’ga ulash'}
+    }
     return;
   }
   if(event.target.id==='ai-form'){
