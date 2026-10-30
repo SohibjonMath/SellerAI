@@ -7,7 +7,8 @@ const seenNonces = new Map();
 
 function json(res, code, data) {
   res.writeHead(code, { 'Content-Type':'application/json; charset=utf-8', 'Cache-Control':'no-store',
-    'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer' });
+    'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer',
+    'X-SellerAI-Relay-Error': code >= 400 ? '1' : '0' });
   res.end(JSON.stringify(data));
 }
 function permittedPath(value) {
