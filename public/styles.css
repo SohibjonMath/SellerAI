@@ -8,3 +8,18 @@
 @media(max-width:1130px){.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.two-col{grid-template-columns:1fr}.content{padding:26px}.topbar{padding:0 26px}.sidebar{width:214px}.nav-item{font-size:12px}}
 @media(max-width:800px){.sidebar{position:fixed;left:0;top:0;transform:translateX(-110%);transition:transform .18s;box-shadow:0 0 0 100vw transparent}.sidebar.open{transform:translateX(0);box-shadow:0 0 0 100vw #0b1d304d}.mobile-menu,.close-mobile{display:grid}.close-mobile{margin-left:auto}.topbar{padding:0 17px;height:65px;justify-content:flex-start}.topbar-right{margin-left:auto}.date{display:none}.content{padding:22px 16px 55px}.topline{align-items:flex-start;flex-direction:column}.topline .btn-group{width:100%}.stat-grid{gap:10px}.stat{min-height:136px;padding:16px}.stat-value{font-size:24px}.page-grid,.integrations{grid-template-columns:1fr}.login-page{grid-template-columns:1fr}.login-visual{min-height:220px;padding:25px;gap:28px}.login-visual h1{font-size:30px}.login-visual p,.login-stats{display:none}.login-main{min-height:calc(100vh - 220px);align-items:flex-start;padding-top:45px}}
 @media(max-width:480px){.form-grid{grid-template-columns:1fr}.form-group.span2{grid-column:span 1}.stat-caption{font-size:11px}.stat-value{font-size:22px}.actions,.kv-grid{grid-template-columns:1fr}.table-toolbar{align-items:stretch}.search-wrap{width:100%}.modal-backdrop{padding:0;align-items:flex-end}.modal{max-height:96vh;border-radius:10px 10px 0 0}.modal-scroll{padding:17px}.modal-footer{padding:14px}.variant-line{grid-template-columns:1fr 1fr auto}}
+
+/* Marketplace connection */
+.integration-primary{grid-column:span 1}
+.connection-line{display:flex;align-items:center;gap:12px;margin:0 0 17px;flex-wrap:wrap}
+.connection-line small,.sync-hint{font-size:11px;color:var(--muted)}
+.uzum-form{margin-top:18px;display:grid;gap:13px}
+.uzum-form .field{width:100%;padding:12px}
+.integration-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px}
+.connected-shops{border:1px solid var(--line);border-radius:6px;padding:15px;margin:15px 0;display:grid;gap:13px}
+.connected-shops .setting-row{margin:0}
+.integration-products{margin-top:16px}
+.integration-products .panel-head{flex-wrap:wrap}
+.shop-products+.shop-products{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
+.shop-products>p{font-size:11px;margin:5px 0 12px}
+@media(max-width:480px){.integration-actions .btn{flex:1;white-space:normal}.integration-card{padding:16px}.connected-shops .setting-row{flex-wrap:wrap}}
