@@ -63,7 +63,7 @@ function integrations(){
   ];
   const storeRows=shops.length?shops.map(s=>{
     const snap=sync.find(x=>x.shop_id===s.id);
-    return `<div class="setting-row"><div><b>${esc(s.name)}</b><small>Do‘kon ID: ${esc(s.id)}</small></div><span class="badge">${snap?.product_count==null?'Ma’lumot tekshirilmagan':fmt(snap.product_count)+' ta mahsulot'}</span></div>`;
+    return `<div class="setting-row"><div><b>${esc(s.name)}</b><small>Do‘kon ID: ${esc(s.id)}</small></div><span class="badge">${snap?.product_count==null?'Ma’lumot tekshirilmagan':fmt(snap.product_count)+' ta yuklandi'}</span></div>`;
   }).join(''):'<p>API bu hisobga biriktirilgan do‘kon qaytarmadi.</p>';
   const productDetails=state.showUzumProducts?`<section class="panel integration-products"><div class="panel-head"><h2>Uzum’dan olingan mahsulotlar</h2>${btn('uzum-products',`${ico('close',15)} Yopish`,'btn-sm')}</div><div class="panel-body">${state.uzumProducts.length?state.uzumProducts.map(sh=>`<div class="shop-products"><h3>Do‘kon ${esc(sh.shop_id)}</h3><p class="muted">So‘nggi yuklash: ${esc(sh.fetched_at||'')}</p>${sh.products.length?`<div class="table-scroll"><table class="data-table"><thead><tr><th>Mahsulot</th><th>SKU</th><th>Narx</th><th>Qoldiq</th></tr></thead><tbody>${sh.products.map(p=>`<tr><td>${esc(p.title||'Nomi aniqlanmadi')}</td><td>${esc(p.sku||'—')}</td><td>${p.price===null?'—':sum(p.price)}</td><td>${p.stock===null?'—':fmt(p.stock)}</td></tr>`).join('')}</tbody></table></div>`:'<p>Bu do‘kon bo‘yicha hali mahsulot olinmagan.</p>'}</div>`).join(''):'<div class="empty">Avval «Sinxronlash» tugmasini bosing.</div>'}</div></section>`:'';
   return `${title('Marketpleys integratsiyalari','Uzum Market hisobingizni ulang va do‘konlaringizni xavfsiz boshqaring.')}
