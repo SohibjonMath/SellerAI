@@ -156,7 +156,7 @@ export async function handleUzum(req, env, path, method) {
       for (const shop of shops.slice(0, 10)) {
         try {
           const { products, partial } = productsFrom(await uzumGet(token, '/v1/product/shop/' + encodeURIComponent(shop.id)));
-          await env.DB.prepare("INSERT INTO marketplace_snapshots (provider,shop_id,products_json,product_count,fetched_at) VALUES (?,?,?,?,datetime('now')) ON CONFLICT(provider,shop_id) DO UPDATE SET products_json=excluded.products_json,product_count=excluded.product_count,fetched_at=datetime('now')").bind(PROVIDER, shop.id, JSON.stringify(products), partial ? null : products.length).run();
+          await env.DB.prepare("INSERT INTO marketplace_snapshots (provider,shop_id,products_json,product_count,fetched_at) VALUES (?,?,?,?,datetime('now')) ON CONFLICT(provider,shop_id) DO UPDATE SET products_json=excluded.products_json,product_count=excluded.product_count,fetched_at=datetime('now')").bind(PROVIDER, shop.id, JSON.stringify(products), products.length).run();
           results.push({ shop_id: shop.id, count: products.length, partial });
         } catch { results.push({ shop_id: shop.id, error: 'Mahsulotlar yuklanmadi' }); }
       }
