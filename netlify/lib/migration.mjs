@@ -51,11 +51,15 @@ export async function handleMigration(req,db,path,method){
           await images().set(p.image_key,new Blob([buffer],{type}),{metadata:{contentType:type}});
           imagesCopied++;
         }
-        await dbQuery(db,'INSERT INTO products '+
+        const inserted=await dbQuery(db,'INSERT INTO products '+
           '(id,sku,title,category,description,price,cost,stock,status,image_key,image_url,variants_json,created_at,updated_at) '+
-          'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT DO NOTHING',
+          'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT DO NOTHING RETURNING id',
           [id,p.sku,p.title,p.category,p.description,p.price,p.cost,p.stock,p.status,p.image_key,p.image_url,p.variants_json,
             raw.created_at||new Date().toISOString(),raw.updated_at||new Date().toISOString()]);
+        if(!inserted.length){
+          const existing=(await dbQuery(db,'SELECT id FROM products WHERE id=$1 OR sku=$2 LIMIT 1',[id,p.sku]))[0];
+          if(existing?.id!==id)throw Error('Bu SKU Netlify bazasida boshqa mahsulotga biriktirilgan');
+        }
         products++;
       }catch(err){errors.push({sku:String(raw?.sku||'').slice(0,70),error:String(err.message||'Xato').slice(0,120)})}
     }
