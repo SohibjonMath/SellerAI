@@ -110,18 +110,43 @@ async function uzumGet(token, suffix) {
   try {
     res = await fetch(BASE + suffix, {
       method: 'GET',
+      // Uzum's official OpenAPI requires the raw key: no Bearer prefix.
       headers: { 'Authorization': token, 'Accept': 'application/json' },
       redirect: 'error', cache: 'no-store', signal: controller.signal
     });
-  } catch {
-    throw Error('Uzum serveriga ulanib bo‘lmadi. Keyinroq qayta sinang');
+  } catch (err) {
+    if (controller.signal.aborted || err?.name === 'AbortError') {
+      throw Error('Uzum API so‘rovi 12 soniyada javob bermadi. Cloudflare bilan Uzum orasidagi tarmoqni tekshiring');
+    }
+    throw Error('Uzum API manziliga Cloudflare serveridan chiqib bo‘lmadi. «Tarmoqni tekshirish» tugmasidan foydalaning');
   } finally { clearTimeout(timeout); }
-  if (res.status === 401 || res.status === 403) throw Error('API token yaroqsiz yoki do‘konlarga ruxsat yo‘q (HTTP ' + res.status + ')');
+  if (res.status === 401 || res.status === 403) throw Error('API token yaroqsiz yoki bu do‘konlarga ruxsat yo‘q (HTTP ' + res.status + ')');
   if (res.status === 429) throw Error('Uzum API so‘rovlar limiti tugadi. Keyinroq qayta urinib ko‘ring');
-  if (!res.ok) throw Error('Uzum API javob bermadi (HTTP ' + res.status + ')');
+  if (!res.ok) throw Error('Uzum API HTTP ' + res.status + ' qaytardi. Kalit ruxsatini yoki Uzum tarmoq cheklovini tekshiring');
   const contentType = res.headers.get('content-type') || '';
-  if (!contentType.includes('json')) throw Error('Uzum API JSON qaytarmadi');
+  if (!contentType.toLowerCase().includes('json')) throw Error('Uzum API JSON qaytarmadi');
   try { return await res.json(); } catch { throw Error('Uzum javobini o‘qib bo‘lmadi'); }
+}
+async function diagnoseUzumNetwork() {
+  // A public API schema is deliberately used: no seller credential leaves
+  // this endpoint, and the probe cannot modify any marketplace data.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 9000);
+  const started = Date.now();
+  try {
+    const res = await fetch(BASE + '/swagger/api-docs', {
+      method: 'GET', headers: { 'Accept': 'application/json' },
+      redirect: 'error', cache: 'no-store', signal: controller.signal
+    });
+    const type = (res.headers.get('content-type') || '').toLowerCase();
+    return { reachable: res.ok && type.includes('json'), http_status: res.status,
+      kind: res.ok && type.includes('json') ? 'ok' : 'upstream_http',
+      duration_ms: Date.now() - started };
+  } catch (err) {
+    return { reachable: false, http_status: null,
+      kind: controller.signal.aborted || err?.name === 'AbortError' ? 'timeout' : 'network_failure',
+      duration_ms: Date.now() - started };
+  } finally { clearTimeout(timeout); }
 }
 async function connection(env) {
   return env.DB.prepare('SELECT provider,token_cipher,shops_json,status,checked_at,last_sync_at FROM marketplace_connections WHERE provider=?').bind(PROVIDER).first();
@@ -151,6 +176,9 @@ export async function handleUzum(req, env, path, method) {
   if (!path.startsWith('/api/integrations/uzum')) return null;
   try {
     await ensureTables(env);
+    if (path === '/api/integrations/uzum/network' && method === 'GET') {
+      return json(await diagnoseUzumNetwork());
+    }
     if (path === '/api/integrations/uzum' && method === 'GET') {
       const row = await connection(env);
       const snapshots = row ? await getProducts(env) : [];
@@ -200,6 +228,9 @@ export async function handleUzum(req, env, path, method) {
     }
     return error('Bunday xizmat mavjud emas', 404);
   } catch (err) {
-    return error(cleanError(err), 422);
+    const message = cleanError(err);
+    // A downstream failure is a gateway error, not an invalid SellerAI form.
+    const upstreamIssue = /^(Uzum API|Uzum javob|API token)/.test(message);
+    return error(message, upstreamIssue ? 502 : 422);
   }
 }
