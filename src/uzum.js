@@ -1,3 +1,4 @@
+import { sellerFetch, relaySettings } from './relay-client.js';
 const BASE = 'https://api-seller.uzum.uz/api/seller-openapi';
 const PROVIDER = 'uzum';
 const json = (data, status = 200) => new Response(JSON.stringify(data), {
@@ -87,12 +88,12 @@ export function productsFrom(body) {
 }
 // Fetch bounded pages, showing partial imports honestly instead of making an
 // unbounded batch of calls inside one Worker request.
-async function fetchShopProducts(token, shopId) {
+async function fetchShopProducts(token, shopId, env) {
   const size = 100, maxPages = 5;
   const products = [];
   let fetchedCards = 0, total = null, complete = false;
   for (let page = 0; page < maxPages; page++) {
-    const batch = productsFrom(await uzumGet(token, '/v1/product/shop/' + encodeURIComponent(shopId) + '?page=' + page + '&size=' + size));
+    const batch = productsFrom(await uzumGet(token, '/v1/product/shop/' + encodeURIComponent(shopId) + '?page=' + page + '&size=' + size, env));
     products.push(...batch.products);
     fetchedCards += batch.cards;
     if (batch.total !== null) total = batch.total;
@@ -103,50 +104,53 @@ async function fetchShopProducts(token, shopId) {
   }
   return { products, partial: !complete, total };
 }
-async function uzumGet(token, suffix) {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+async function uzumGet(token, suffix, env) {
+  const viaRelay = Boolean(relaySettings(env));
   let res;
   try {
-    res = await fetch(BASE + suffix, {
-      method: 'GET',
-      // Uzum's official OpenAPI requires the raw key: no Bearer prefix.
-      headers: { 'Authorization': token, 'Accept': 'application/json' },
-      redirect: 'error', cache: 'no-store', signal: controller.signal
-    });
+    res = await sellerFetch(env, suffix, token);
   } catch (err) {
-    if (controller.signal.aborted || err?.name === 'AbortError') {
-      throw Error('Uzum API so‘rovi 12 soniyada javob bermadi. Cloudflare bilan Uzum orasidagi tarmoqni tekshiring');
+    if (/^Uzum shlyuz sozlamasi|^Uzum shlyuz manzili/.test(err?.message || '')) throw err;
+    if (err?.name === 'AbortError' || err?.name === 'TimeoutError') {
+      throw Error(viaRelay ? 'Uzum oraliq serveridan 12 soniyada javob kelmadi' : 'Uzum API so‘rovi 12 soniyada javob bermadi');
     }
-    throw Error('Uzum API manziliga Cloudflare serveridan chiqib bo‘lmadi. «Tarmoqni tekshirish» tugmasidan foydalaning');
-  } finally { clearTimeout(timeout); }
-  if (res.status === 401 || res.status === 403) throw Error('API token yaroqsiz yoki bu do‘konlarga ruxsat yo‘q (HTTP ' + res.status + ')');
+    throw Error(viaRelay
+      ? 'Uzum oraliq serveriga Cloudflare serveridan chiqib bo‘lmadi'
+      : 'Uzum API manziliga Cloudflare serveridan chiqib bo‘lmadi. «Tarmoqni tekshirish» tugmasidan foydalaning');
+  }
+  if (viaRelay && res.headers.get('x-sellerai-relay-error')) {
+    throw Error('Uzum oraliq serveri xato qaytardi (HTTP ' + res.status + ')');
+  }
+  if (res.status === 401 || res.status === 403) throw Error('API token yaroqsiz yoki do‘konlarga ruxsat yo‘q (HTTP ' + res.status + ')');
   if (res.status === 429) throw Error('Uzum API so‘rovlar limiti tugadi. Keyinroq qayta urinib ko‘ring');
-  if (!res.ok) throw Error('Uzum API HTTP ' + res.status + ' qaytardi. Kalit ruxsatini yoki Uzum tarmoq cheklovini tekshiring');
+  if (!res.ok) throw Error('Uzum API HTTP ' + res.status + ' qaytardi');
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.toLowerCase().includes('json')) throw Error('Uzum API JSON qaytarmadi');
   try { return await res.json(); } catch { throw Error('Uzum javobini o‘qib bo‘lmadi'); }
 }
-async function diagnoseUzumNetwork() {
-  // A public API schema is deliberately used: no seller credential leaves
-  // this endpoint, and the probe cannot modify any marketplace data.
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 9000);
-  const started = Date.now();
+async function diagnoseUzumNetwork(env) {
+  const relay = relaySettings(env);
+  const start = Date.now();
   try {
-    const res = await fetch(BASE + '/swagger/api-docs', {
-      method: 'GET', headers: { 'Accept': 'application/json' },
-      redirect: 'error', cache: 'no-store', signal: controller.signal
-    });
-    const type = (res.headers.get('content-type') || '').toLowerCase();
-    return { reachable: res.ok && type.includes('json'), http_status: res.status,
-      kind: res.ok && type.includes('json') ? 'ok' : 'upstream_http',
-      duration_ms: Date.now() - started };
+    const res = await sellerFetch(env, relay ? '/health' : '/swagger/api-docs', '', 9000);
+    if (relay) {
+      const health = await res.json().catch(() => null);
+      if (!health || typeof health.reachable !== 'boolean') {
+        return { mode:'relay', reachable:false, kind:'relay_error', http_status:res.status,
+          duration_ms:Date.now()-start };
+      }
+      return { mode:'relay', relay_reachable:true, reachable:health.reachable,
+        http_status:health.http_status ?? null, kind:health.reachable?'ok':'upstream_http',
+        duration_ms:Date.now()-start };
+    }
+    const type = res.headers.get('content-type') || '';
+    return { mode:'direct', reachable:res.ok && type.toLowerCase().includes('json'),
+      http_status:res.status, kind:res.ok && type.toLowerCase().includes('json')?'ok':'upstream_http',
+      duration_ms:Date.now()-start };
   } catch (err) {
-    return { reachable: false, http_status: null,
-      kind: controller.signal.aborted || err?.name === 'AbortError' ? 'timeout' : 'network_failure',
-      duration_ms: Date.now() - started };
-  } finally { clearTimeout(timeout); }
+    return { mode:relay?'relay':'direct', reachable:false, kind:err?.name==='AbortError'?'timeout':'network_failure',
+      http_status:null, duration_ms:Date.now()-start };
+  }
 }
 async function connection(env) {
   return env.DB.prepare('SELECT provider,token_cipher,shops_json,status,checked_at,last_sync_at FROM marketplace_connections WHERE provider=?').bind(PROVIDER).first();
@@ -177,7 +181,7 @@ export async function handleUzum(req, env, path, method) {
   try {
     await ensureTables(env);
     if (path === '/api/integrations/uzum/network' && method === 'GET') {
-      return json(await diagnoseUzumNetwork());
+      return json(await diagnoseUzumNetwork(env));
     }
     if (path === '/api/integrations/uzum' && method === 'GET') {
       const row = await connection(env);
@@ -194,7 +198,7 @@ export async function handleUzum(req, env, path, method) {
       const body = await readBody(req);
       const token = str(body?.token, 4096);
       if (token.length < 16 || /[\r\n]/.test(token)) return error('Uzum API tokenini to‘g‘ri kiriting');
-      const shops = shopsFrom(await uzumGet(token, '/v1/shops'));
+      const shops = shopsFrom(await uzumGet(token, '/v1/shops', env));
       if (!shops.length) return error('Uzum API tokeni uchun do‘kon topilmadi. API ruxsatlarini tekshiring', 403);
       const cipher = await seal(token, env.ADMIN_PASSWORD);
       await env.DB.prepare("INSERT INTO marketplace_connections (provider,token_cipher,shops_json,status,checked_at,updated_at) VALUES (?,?,?,'connected',datetime('now'),datetime('now')) ON CONFLICT(provider) DO UPDATE SET token_cipher=excluded.token_cipher,shops_json=excluded.shops_json,status='connected',checked_at=datetime('now'),last_sync_at=NULL,updated_at=datetime('now')").bind(PROVIDER, cipher, JSON.stringify(shops)).run();
@@ -212,13 +216,13 @@ export async function handleUzum(req, env, path, method) {
       let token;
       try { token = await unseal(row.token_cipher, env.ADMIN_PASSWORD); }
       catch { return error('Tokenni o‘qib bo‘lmadi. Administrator paroli o‘zgargan bo‘lsa, qayta ulang', 409); }
-      const shops = shopsFrom(await uzumGet(token, '/v1/shops'));
+      const shops = shopsFrom(await uzumGet(token, '/v1/shops', env));
       await env.DB.prepare("UPDATE marketplace_connections SET shops_json=?,status='connected',checked_at=datetime('now'),updated_at=datetime('now') WHERE provider=?").bind(JSON.stringify(shops), PROVIDER).run();
       if (path.endsWith('/check')) return json({ connected: true, shops });
       const results = [];
       for (const shop of shops.slice(0, 10)) {
         try {
-          const { products, partial } = await fetchShopProducts(token, shop.id);
+          const { products, partial } = await fetchShopProducts(token, shop.id, env);
           await env.DB.prepare("INSERT INTO marketplace_snapshots (provider,shop_id,products_json,product_count,fetched_at) VALUES (?,?,?,?,datetime('now')) ON CONFLICT(provider,shop_id) DO UPDATE SET products_json=excluded.products_json,product_count=excluded.product_count,fetched_at=datetime('now')").bind(PROVIDER, shop.id, JSON.stringify(products), products.length).run();
           results.push({ shop_id: shop.id, count: products.length, partial });
         } catch (err) { results.push({ shop_id: shop.id, error: cleanError(err) }); }
