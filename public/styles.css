@@ -23,3 +23,7 @@
 .shop-products+.shop-products{margin-top:20px;padding-top:20px;border-top:1px solid var(--line)}
 .shop-products>p{font-size:11px;margin:5px 0 12px}
 @media(max-width:480px){.integration-actions .btn{flex:1;white-space:normal}.integration-card{padding:16px}.connected-shops .setting-row{flex-wrap:wrap}}
+
+/* Visible connection feedback; never silently ignore an empty API key. */
+.uzum-form .field[aria-invalid="true"]{border-color:var(--red);outline-color:var(--red)}
+.uzum-form .field-error{color:var(--red);font-weight:600}
