@@ -111,6 +111,29 @@ async function api(req, env) {
   if (!await authorized(req, env)) return fail('Avval tizimga kiring', 401);
   if (path === '/api/logout' && method === 'POST') return response({ ok: true }, 200, {'Set-Cookie': `${SESSION_COOKIE}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict`});
   if (path === '/api/me' && method === 'GET') return response({ authenticated:true, product: 'SellerAI' });
+
+  if (path === '/api/migration/export' && method === 'GET') {
+    const offset = Number(url.searchParams.get('offset') || 0);
+    const limit = Number(url.searchParams.get('limit') || 8);
+    if (!Number.isSafeInteger(offset) || offset < 0 || offset > 100000 ||
+        !Number.isSafeInteger(limit) || limit < 1 || limit > 20)
+      return fail('Ko‘chirish sahifasi noto‘g‘ri', 400);
+    const productData = await env.DB.prepare(
+      'SELECT '+PRODUCT_COLS+' FROM products ORDER BY created_at,id LIMIT ? OFFSET ?'
+    ).bind(limit,offset).all();
+    const history = await env.DB.prepare(
+      'SELECT id,product_id,action,detail,created_at FROM activity ORDER BY created_at,id LIMIT ? OFFSET ?'
+    ).bind(limit,offset).all();
+    const productsCount = await env.DB.prepare('SELECT COUNT(*) AS n FROM products').first();
+    const historyCount = await env.DB.prepare('SELECT COUNT(*) AS n FROM activity').first();
+    return response({
+      products:(productData.results || []).map(mapProduct),
+      activities:history.results || [],
+      totalProducts:Number(productsCount?.n || 0),
+      totalActivities:Number(historyCount?.n || 0)
+    });
+  }
+
   const uzumResult = await handleUzum(req, env, path, method);
   if (uzumResult) return uzumResult;
   if (path === '/api/stats' && method === 'GET') {
