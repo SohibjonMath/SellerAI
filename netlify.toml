@@ -1,5 +1,5 @@
 [build]
-  publish = "relay/netlify-public"
+  publish = "public"
   command = "npm run check && npm test"
 
 [functions]
