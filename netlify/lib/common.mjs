@@ -93,6 +93,7 @@ export function safeError(error){
   const st=error?.status;
   if(st&&st>=400&&st<500)return fail(error.message,st);
   if(error?.message?.startsWith('ADMIN_PASSWORD'))return fail(error.message,503);
+  if(/Environment not configured|Database connection|NETLIFY_DB_URL|database is not available/i.test(error?.message||''))return fail('Netlify Database faol emas. Netlify loyihasida Database xizmatini yoqing',503);
   console.error('SellerAI API error:',error?.code||error?.name||'internal');
   return fail('Serverda xatolik yuz berdi',500);
 }
