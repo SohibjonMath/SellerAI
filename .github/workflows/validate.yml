@@ -11,4 +11,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm run check
+      - name: Install Wrangler
+        run: npm install --no-audit --no-fund
+      - name: Verify JavaScript syntax
+        run: npm run check
+      - name: Verify Worker bundle
+        run: npx wrangler deploy --dry-run
