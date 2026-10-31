@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { getStore } from '@netlify/blobs';
 import { json, fail, bodyJson, cleanProduct, safeString } from './common.mjs';
 import { saveProduct, addActivity, productToUI } from './firebase.mjs';
+import { calculatePrice } from './pricing.mjs';
 
 const COLLECTION='sellerai_imports', LIMIT=30, MAX_HTML=120000;
 const SITES=['1688.com','alibaba.com','uzum.uz','orzumall.uz'];
@@ -220,13 +221,24 @@ export async function handleImports(req,db,path,method){
     const body=await bodyJson(req,12000);
     const value=normalizeImport({...item,...body,source_url:item.source_url});
     if(!value.title||!value.sku)return fail('Katalogga saqlash uchun nom va SKU majburiy',400);
-    const draft=cleanProduct({...value,image_key:item.image_key||'',status:'draft'});
+    let price=value.price,priceAutoCalculated=false;
+    if(value.cost>0 && price===0){
+      const savedPricing=await db.collection('sellerai_settings').doc('pricing').get();
+      const pricing=savedPricing.exists?savedPricing.data():null;
+      if(pricing?.confirmed===true && Number(pricing.profit)>0){
+        try{
+          price=calculatePrice({...pricing,cost:value.cost}).recommendedPrice;
+          priceAutoCalculated=true;
+        }catch(e){console.error('Automatic price preview:',e?.name||'invalid_settings')}
+      }
+    }
+    const draft=cleanProduct({...value,price,image_key:item.image_key||'',status:'draft'});
     const productId=randomUUID(),details={...draft,description_ru:item.description_ru||'',
       keywords:item.keywords||[],source_url:item.source_url||'',import_id:id};
     const result=await saveProduct(db,details,productId);
     await addActivity(db,productId,'imported',draft.title);
     await ref.update({status:'saved',product_id:productId,updated_at:now(),quality:productQuality(value)});
-    return json({product:productToUI(result.product)});
+    return json({product:productToUI(result.product),priceAutoCalculated});
   }
   return fail('Import xizmati topilmadi',404);
 }
