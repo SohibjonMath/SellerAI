@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {cleanProduct,comparePassword,makeCookie,authenticated,bodyJson,mapProduct,assertOrigin} from '../netlify/lib/common.mjs';
+import {cleanProduct,comparePassword,makeCookie,authenticated,bodyJson,assertOrigin} from '../netlify/lib/common.mjs';
+import { productToUI } from '../netlify/lib/firebase.mjs';
 
 const secret='unit-test-password-for-sellerai';
 test('password comparison and signed administrator cookie',()=>{
@@ -17,10 +18,10 @@ test('validate product data and never accept invalid SKU or image URLs',()=>{
   assert.throws(()=>cleanProduct({...base,sku:'INVALID / SKU'}));
   assert.throws(()=>cleanProduct({...base,image_url:'javascript:alert(1)'}));
 });
-test('Postgres numeric columns map back to frontend numeric values',()=>{
+test('Firestore product values map to frontend numeric values',()=>{
   const row={id:'one',title:'Test',price:'42000',cost:'28000',stock:'2',variants_json:'[]',
-    created_at:new Date('2026-10-30T00:00:00Z')};
-  const p=mapProduct(row);
+    created_at:'2026-10-30T00:00:00.000Z'};
+  const p=productToUI(row);
   assert.equal(p.price,42000);
   assert.equal(p.stock,2);
   assert.equal(p.created_at,'2026-10-30T00:00:00.000Z');
