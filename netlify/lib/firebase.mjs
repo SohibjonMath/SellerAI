@@ -55,7 +55,7 @@ export async function saveProduct(db, product, id, isUpdate = false, originalDat
     const keyRecord = await tx.get(newSku);
     if (keyRecord.exists && keyRecord.data().product_id !== id) throw apiConflict('Bu SKU bilan mahsulot allaqachon bor');
     const now = new Date().toISOString();
-    const data = { ...product, id,
+    const data = { ...(isUpdate && old ? old : {}), ...product, id,
       created_at: old?.created_at || originalDates?.created_at || now,
       updated_at: originalDates?.updated_at || now };
     if (isUpdate) tx.update(ref, data);
