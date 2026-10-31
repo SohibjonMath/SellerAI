@@ -41,3 +41,44 @@
 .migration-form .field{padding:12px}
 .migration-result{font-size:12px;color:var(--muted);line-height:1.7;margin-top:13px}
 @media(max-width:500px){.migration-form{display:grid}.migration-form .btn{width:100%}}
+
+/* SellerAI import center: simple rectangular cards; no gradients or emoji. */
+.import-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(280px,1fr);gap:16px;margin-bottom:20px}
+.import-form{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.import-form>label{font-size:12px;font-weight:600;color:var(--navy,#002050)}
+.import-form textarea{width:100%;min-height:125px;resize:vertical;line-height:1.55}
+.import-form .import-file{width:100%;padding:10px;min-height:44px}
+.import-help{font-size:11px;line-height:1.6;color:var(--muted);margin:-2px 0 5px}
+.import-notice{font-size:12px;line-height:1.6;color:var(--muted);margin:0}
+.import-step{display:flex;gap:14px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+.import-step strong{color:var(--orange,#f86000);font-size:12px;min-width:24px}
+.import-step span{font-size:12px;line-height:1.6}
+.import-guide .info-note{margin-top:18px;font-size:11px}
+.import-queue-header{gap:15px;flex-wrap:wrap}
+.import-filters{display:flex;flex-wrap:wrap;gap:8px;padding:13px 17px;border-bottom:1px solid var(--line)}
+.import-filter{background:#fff;border:1px solid var(--line);padding:8px 12px;font-family:inherit;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;color:var(--muted)}
+.import-filter.active{border-color:#f86000;color:#002050;background:#fff8f3}
+.import-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:16px}
+.import-card{border:1px solid var(--line);background:#fff;border-radius:5px;min-width:0;padding:16px;display:flex;flex-direction:column;gap:11px}
+.import-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.import-card h3{font-size:14px;line-height:1.45;margin:6px 0;color:#002050;overflow-wrap:anywhere}
+.import-state{font-size:10px;color:#f86000;font-weight:700;text-transform:uppercase}
+.import-ref{font-size:10px;color:var(--muted);margin:0;overflow-wrap:anywhere}
+.import-quality{border:1px solid var(--line);padding:8px 10px;text-align:center;min-width:70px;flex-shrink:0;border-radius:4px}
+.import-quality strong{font-size:16px;color:#002050;display:block}
+.import-quality small{font-size:9px;color:var(--muted)}
+.import-summary,.import-russian p{font-size:12px;line-height:1.7;color:var(--text);overflow-wrap:anywhere}
+.import-russian summary{cursor:pointer;font-size:11px;font-weight:600;color:#002050}
+.import-error{font-size:11px;color:#b42318;background:#fff5f3;padding:10px;border-left:2px solid #b42318;margin:0}
+.import-missing{font-size:11px;color:#795548;background:#fffaf2;padding:9px;margin:0}
+.import-source{font-size:11px;color:#002050;display:inline-flex;align-items:center;gap:6px;overflow-wrap:anywhere}
+.import-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}
+.import-actions .btn{font-size:11px;padding:8px 10px;display:inline-flex;align-items:center;gap:5px}
+.import-danger{color:#b42318;border-color:#f2c8c0}
+.import-edit-form{border-top:1px solid var(--line);padding-top:13px}
+.import-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.import-fields label{display:flex;flex-direction:column;gap:5px;font-size:11px;font-weight:600;color:#002050;min-width:0}
+.import-fields input,.import-fields textarea{width:100%}
+.import-span{grid-column:1/-1}
+@media(max-width:1050px){.import-layout{grid-template-columns:1fr}.import-cards{grid-template-columns:1fr}}
+@media(max-width:600px){.import-cards{padding:10px}.import-card{padding:12px}.import-fields{grid-template-columns:1fr}.import-queue-header .btn,.import-form .btn{width:100%;justify-content:center}.import-quality{min-width:62px}.import-card-top{gap:8px}}
