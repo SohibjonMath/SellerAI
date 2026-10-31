@@ -1,5 +1,6 @@
 import { getStore } from '@netlify/blobs';
-import { json,fail,dbQuery,bodyJson,cleanProduct,PRODUCT_COLS } from './common.mjs';
+import { json,fail,bodyJson,cleanProduct } from './common.mjs';
+import { saveProduct } from './firebase.mjs';
 
 const SOURCE='https://sellerai.sohibjonmath.workers.dev';
 const BATCH=4;
@@ -20,9 +21,11 @@ async function getSource(password,path){
 export async function handleMigration(req,db,path,method){
   if(!path.startsWith('/api/migration/'))return null;
   if(path==='/api/migration/status'&&method==='GET'){
-    const counts=(await dbQuery(db,'SELECT COUNT(*) AS count FROM products'))[0];
-    const activities=(await dbQuery(db,'SELECT COUNT(*) AS count FROM activity'))[0];
-    return json({products:Number(counts.count),activities:Number(activities.count)});
+    const [products,activities]=await Promise.all([
+      db.collection('products').count().get(),
+      db.collection('activity').count().get()
+    ]);
+    return json({products:products.data().count,activities:activities.data().count});
   }
   if(path==='/api/migration/cloudflare'&&method==='POST'){
     const body=await bodyJson(req,1500);
@@ -41,6 +44,9 @@ export async function handleMigration(req,db,path,method){
         const p=cleanProduct({...raw,variants:raw.variants||[]});
         const id=String(raw.id||'');
         if(!/^[a-f0-9-]{36}$/.test(id))throw Error('Mahsulot identifikatori noto‘g‘ri');
+        const target=db.collection('products').doc(id);
+        const existing=await target.get();
+        if(existing.exists){products++;continue}
         if(p.image_key){
           const response=await fetch(SOURCE+'/api/media/'+encodeURIComponent(p.image_key),
             {headers:{Cookie:cookie},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(12000)});
@@ -51,30 +57,33 @@ export async function handleMigration(req,db,path,method){
           await images().set(p.image_key,new Blob([buffer],{type}),{metadata:{contentType:type}});
           imagesCopied++;
         }
-        const inserted=await dbQuery(db,'INSERT INTO products '+
-          '(id,sku,title,category,description,price,cost,stock,status,image_key,image_url,variants_json,created_at,updated_at) '+
-          'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT DO NOTHING RETURNING id',
-          [id,p.sku,p.title,p.category,p.description,p.price,p.cost,p.stock,p.status,p.image_key,p.image_url,p.variants_json,
-            raw.created_at||new Date().toISOString(),raw.updated_at||new Date().toISOString()]);
-        if(!inserted.length){
-          const existing=(await dbQuery(db,'SELECT id FROM products WHERE id=$1 OR sku=$2 LIMIT 1',[id,p.sku]))[0];
-          if(existing?.id!==id)throw Error('Bu SKU Netlify bazasida boshqa mahsulotga biriktirilgan');
-        }
+        await saveProduct(db,p,id,false,{
+          created_at:String(raw.created_at||new Date().toISOString()),
+          updated_at:String(raw.updated_at||new Date().toISOString())
+        });
         products++;
-      }catch(err){errors.push({sku:String(raw?.sku||'').slice(0,70),error:String(err.message||'Xato').slice(0,120)})}
+      }catch(err){
+        errors.push({sku:String(raw?.sku||'').slice(0,70),error:String(err.message||'Xato').slice(0,120)});
+      }
     }
     for(const a of data.activities){
       try{
-        if(!/^[a-f0-9-]{36}$/.test(String(a.id||'')))continue;
-        await dbQuery(db,'INSERT INTO activity (id,product_id,action,detail,created_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT DO NOTHING',
-          [a.id,a.product_id||null,String(a.action||'').slice(0,80),
-            String(a.detail||'').slice(0,2000),a.created_at||new Date().toISOString()]);
+        const id=String(a.id||'');
+        if(!id||id.includes('/')||id.length>140)continue;
+        await db.collection('activity').doc(id).create({
+          id,product_id:a.product_id||null,action:String(a.action||'').slice(0,80),
+          detail:String(a.detail||'').slice(0,2000),
+          created_at:String(a.created_at||new Date().toISOString())
+        }).catch(error=>{
+          if(error?.code!==6 && error?.code!=='already-exists')throw error;
+        });
         activities++;
-      }catch(err){errors.push({activity:String(a.id),error:'Harakat tarixi saqlanmadi'})}
+      }catch{
+        errors.push({activity:String(a.id),error:'Harakat tarixi saqlanmadi'});
+      }
     }
     return json({offset,step:BATCH,totalProducts:data.totalProducts,totalActivities:data.totalActivities,
-      products,images:imagesCopied,activities,errors,
-      nextOffset:offset+BATCH,
+      products,images:imagesCopied,activities,errors,nextOffset:offset+BATCH,
       complete:offset+BATCH>=Math.max(data.totalProducts,data.totalActivities)&&errors.length===0});
   }
   return fail('Ko‘chirish xizmati topilmadi',404);
