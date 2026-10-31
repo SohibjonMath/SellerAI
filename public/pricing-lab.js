@@ -38,7 +38,7 @@ function pricingLab(){
  <label class="pricing-field">Har donadan kerakli sof foyda (so‘m)
  <input class="field" name="profit" id="pricing-profit" type="number" min="0" step="1" required value="${Number(state.priceProfit ?? settings.profit ?? 0)}"></label>
  <button class="btn btn-primary pricing-submit" type="submit" ${state.priceBusy?'disabled':''}>${ico('coins',16)} Narxni hisoblash</button>
- <details class="price-advanced" id="pricing-advanced"><summary>${ico('settings',15)} Xarajatlar sozlamasi <span>Bir marta saqlanadi</span></summary>
+ <details class="price-advanced" id="pricing-advanced"><summary>${ico('gear',15)} Xarajatlar sozlamasi <span>Bir marta saqlanadi</span></summary>
  <p class="import-help">Bu qiymatlar barcha hisoblarda qayta ishlatiladi. Uzum komissiyasini va logistika xarajatlarini haqiqiy tariflarga qarab kiriting.</p>
  <div class="pricing-grid">${PRICE_FIELDS.map(([key,name,unit])=>`<label class="pricing-field">${name}<span>${unit}</span><input class="field" name="${key}" type="number" min="0" step="${unit==='%'?'0.01':'1'}" ${unit==='%'?'max="60"':''} value="${Number(settings[key]||0)}"></label>`).join('')}</div>
  <label class="pricing-field">Yaxlitlash<select class="field" name="step">${[1,100,500,1000].map(v=>`<option value="${v}" ${Number(settings.step)===v?'selected':''}>${fmt(v)} so‘m</option>`).join('')}</select></label>
