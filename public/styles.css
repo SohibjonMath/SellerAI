@@ -111,3 +111,29 @@
 .studio-result .import-help{margin-top:18px}
 @media(max-width:1100px){.studio-two-cols{grid-template-columns:1fr}}
 @media(max-width:600px){.pricing-grid,.studio-mode{grid-template-columns:1fr}.pricing-buttons>.btn,.studio-result-actions>.btn{width:100%;justify-content:center}.pricing-highlight>strong{font-size:24px}}
+
+/* Minimal one-link-or-photo product intake and two-field pricing. */
+.quick-import{margin-bottom:18px}
+.quick-import-body{display:grid;gap:14px}
+.quick-import-form,.quick-import-photo{display:grid;gap:8px}
+.quick-import-form>label,.quick-import-photo>label{font-size:13px;font-weight:600;color:#002050}
+.quick-import-line{display:flex;gap:10px;align-items:stretch;min-width:0}
+.quick-import-line .field{min-width:0;flex:1;min-height:46px;font-size:13px}
+.quick-import-line .btn{white-space:nowrap}
+.quick-import-separator{display:flex;align-items:center;gap:12px;color:#64748b;font-size:11px}
+.quick-import-separator:before,.quick-import-separator:after{content:'';height:1px;background:#e2e8f0;flex:1}
+.quick-import-advanced{border-top:1px solid #e2e8f0;padding-top:12px}
+.quick-import-advanced>summary{font-size:12px;font-weight:600;color:#002050;cursor:pointer}
+.quick-import-advanced .import-form{margin-top:15px}
+.quick-import-advanced textarea{width:100%}
+.price-advanced{border:1px solid #dbe3ec;border-radius:4px;padding:14px;margin-top:12px}
+.price-advanced summary{display:flex;gap:8px;align-items:center;font-size:12px;color:#002050;font-weight:600;cursor:pointer}
+.price-advanced summary span{margin-left:auto;font-size:11px;color:#64748b;font-weight:400}
+.price-advanced .pricing-grid{margin:15px 0}
+.price-advanced .pricing-field{font-size:11px}
+.price-advanced>.btn{margin-top:13px}
+.price-breakdown{margin-top:15px;border-top:1px solid #e2e8f0;padding-top:13px}
+.price-breakdown summary{font-size:12px;font-weight:600;cursor:pointer}
+.price-breakdown .pricing-breakdown{margin-top:8px}
+.pricing-submit{min-height:45px;justify-content:center}
+@media(max-width:650px){.quick-import-line{flex-direction:column}.quick-import-line .btn{width:100%;justify-content:center}.quick-import-advanced .import-form{display:grid}.price-advanced{padding:11px}}
