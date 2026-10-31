@@ -70,7 +70,15 @@ async function api(req,context){
     return json({settings});
   }
   if(path==='/api/pricing/quote'&&method==='POST'){
-    return json({quote:calculatePrice(await bodyJson(req,5000))});
+    const input=await bodyJson(req,5000);
+    const snapshot=await db.collection('sellerai_settings').doc('pricing').get();
+    const saved=snapshot.exists?snapshot.data():DEFAULT_PRICING;
+    const quote=calculatePrice({...DEFAULT_PRICING,...saved,...input});
+    const configured=snapshot.exists && (Number(saved.commission||0)>0
+      || Number(saved.payment||0)>0 || Number(saved.fulfillment||0)>0
+      || Number(saved.inbound||0)>0 || Number(saved.packaging||0)>0
+      || Number(saved.tax||0)>0);
+    return json({quote,tariffsConfigured:configured});
   }
 
   if(path==='/api/stats'&&method==='GET'){
