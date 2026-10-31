@@ -1,11 +1,11 @@
 {
   "name": "sellerai",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "netlify dev",
-    "check": "node --check netlify/functions/sellerai.mjs && node --check netlify/lib/firebase.mjs && node --check netlify/lib/common.mjs && node --check netlify/lib/uzum.mjs && node --check netlify/lib/migration.mjs && node --check netlify/lib/imports.mjs && node --check netlify/lib/pricing.mjs && node --check public/pricing-lab.js && node --check public/photo-studio.js && node --check public/import-center.js && node --check public/app.js",
+    "check": "node --check netlify/functions/sellerai.mjs && node --check netlify/lib/firebase.mjs && node --check netlify/lib/common.mjs && node --check netlify/lib/uzum.mjs && node --check netlify/lib/migration.mjs && node --check netlify/lib/imports.mjs && node --check netlify/lib/pricing.mjs && node --check netlify/lib/product-variants.mjs && node --check public/pricing-lab.js && node --check public/photo-studio.js && node --check public/import-center.js && node --check public/app.js",
     "test": "node --test"
   },
   "devDependencies": {
