@@ -114,7 +114,7 @@ function settings(){
       <div class="panel-head"><h2>Administrator</h2>${ico('lock',19)}</div>
       <div class="panel-body setting-info">
         <div class="setting-row"><div><b>Hisob</b><small>Yakka administrator, yopiq boshqaruv paneli</small></div><span class="badge badge-ready">Faol</span></div>
-        <div class="setting-row"><div><b>Ma’lumotlar bazasi</b><small>Netlify Database (Postgres)</small></div>${ico('box',18)}</div>
+        <div class="setting-row"><div><b>Ma’lumotlar bazasi</b><small>Neon PostgreSQL</small></div>${ico('box',18)}</div>
         <div class="setting-row"><div><b>Rasmlar</b><small>Netlify Blobs</small></div>${ico('image',18)}</div>
         <div class="setting-row"><div><b>AI Studio</b><small>Netlify AI Gateway</small></div>${ico('sparkle',18)}</div>
         <div class="setting-row"><div><b>Hisobdan chiqish</b><small>Joriy sessiyani yakunlash</small></div>${btn('logout',ico('logout',15)+' Chiqish','btn-sm')}</div>
@@ -125,14 +125,14 @@ function settings(){
       <div class="panel-body setting-info">
         <div class="setting-row"><div><b>SellerAI</b><small>Versiya 1.0.0</small></div><span class="badge badge-ready">Netlify</span></div>
         <div class="setting-row"><div><b>Mahsulotlar</b><small>${fmt(state.products.length)} ta karta</small></div>${btn('export',ico('download',14)+' CSV','btn-sm')}</div>
-        <div class="info-note">${ico('info',17)} <span>Ma’lumotlar Netlify bazasida saqlanadi. Oldingi Cloudflare tizimi ko‘chirish yakunlanmaguncha o‘chirilmaydi.</span></div>
+        <div class="info-note">${ico('info',17)} <span>Ma’lumotlar Neon bazasida saqlanadi. Oldingi Cloudflare tizimi ko‘chirish yakunlanmaguncha o‘chirilmaydi.</span></div>
       </div>
     </section>
   </div>
   <section class="panel migration-panel">
     <div class="panel-head"><div><h2>Eski ma’lumotlarni ko‘chirish</h2><p class="panel-sub">Cloudflare'dagi mahsulotlar, rasmlar, variantlar va harakatlar tarixini saqlab o‘tkazing.</p></div>${ico('download',20)}</div>
     <div class="panel-body">
-      <p class="muted migration-explainer">Eski SellerAI administrator parolini kiriting. U faqat ko‘chirish jarayonida ishlatiladi, Netlify bazasiga saqlanmaydi. Mavjud yangi mahsulotlar o‘chirilmaydi.</p>
+      <p class="muted migration-explainer">Eski SellerAI administrator parolini kiriting. U faqat ko‘chirish jarayonida ishlatiladi, ma’lumotlar bazasiga saqlanmaydi. Mavjud yangi mahsulotlar o‘chirilmaydi.</p>
       <form id="migration-form" class="migration-form" autocomplete="off">
         <div class="form-group"><label for="source-password">Eski Cloudflare administrator paroli</label><input id="source-password" name="sourcePassword" type="password" class="field" minlength="12" required autocomplete="off" placeholder="Eski parolni kiriting"></div>
         <button type="submit" class="btn btn-primary" id="migration-submit" ${state.migrationBusy?'disabled':''}>${ico('download',16)} ${state.migrationBusy?'Ko‘chirilmoqda...':'Ma’lumotlarni ko‘chirish'}</button>
@@ -284,7 +284,7 @@ document.addEventListener('submit',async event=>{
     if(state.migrationBusy)return;
     const password=String(new FormData(event.target).get('sourcePassword')||'');
     if(password.length<12){toast('Eski administrator parolini kiriting',true);return}
-    if(!confirm('Eski Cloudflare ma’lumotlarini Netlify bazasiga ko‘chirish boshlansinmi? Yangi ma’lumotlar o‘chirilmaydi.'))return;
+    if(!confirm('Eski Cloudflare ma’lumotlarini Neon bazasiga ko‘chirish boshlansinmi? Yangi ma’lumotlar o‘chirilmaydi.'))return;
     state.migrationBusy=true;
     const button=$('#migration-submit'),target=$('#migration-result');
     if(button){button.disabled=true;button.textContent='Ko‘chirilmoqda...'}
@@ -325,4 +325,4 @@ document.addEventListener('submit',async event=>{
     try{const data=await api('/api/ai/draft',{method:'POST',body:JSON.stringify(state.aiInput)});state.aiDraft=data.draft;toast('AI tavsif tayyor')}catch(e){toast(e.message,true)}finally{state.busy=false;render()}return;
   }
 });
-(async()=>{try{await api('/api/me');state.authorized=true;await reload()}catch(e){state.authorized=false;state.configError=/(sozlan|sozlang|bog‘lanmagan|Netlify Database|faol emas)/i.test(e.message)?e.message:'';render()}})();
+(async()=>{try{await api('/api/me');state.authorized=true;await reload()}catch(e){state.authorized=false;state.configError=/(sozlan|sozlang|bog‘lanmagan|Netlify Database|Neon|DATABASE_URL|faol emas)/i.test(e.message)?e.message:'';render()}})();
