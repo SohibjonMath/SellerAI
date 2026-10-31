@@ -59,45 +59,88 @@ function importDraft(){
  const items=state.imports||[];
  return items.find(x=>x.id===state.importActive)||null;
 }
+function importVariantRow(data={},index=0){
+ const hasPicture=Boolean(data.image_key||data.image_url);
+ return `<div class="one-variant-row">
+   <div class="one-variant-row-top">
+    <span>${ico('layers',15)} Variant ${index+1}</span>
+    <button type="button" class="btn" data-action="import-remove-variant" aria-label="Variantni öçiriş">${ico('trash',14)} Olib tashlash</button>
+   </div>
+   <div class="one-variant-inputs">
+    <label>Turi<select class="field" name="variant-kind">
+      ${['Rang','Hajm','Ölçam','Boshqa'].map(v=>`<option value="${v}" ${(data.name||'Rang')===v?'selected':''}>${v}</option>`).join('')}
+    </select></label>
+    <label>Variant nomi<input class="field" name="variant-value" maxlength="100" required placeholder="Masalan: Oq yoki 500 ml" value="${esc(data.value||'')}"></label>
+    <label>Tannarx <small>boş qoldirilsa umumiy</small>
+      <input class="field" name="variant-cost" type="number" min="0" step="1" placeholder="Umumiy tannarx" value="${data.cost!==undefined?Number(data.cost):''}">
+    </label>
+    <label>Sof foyda <small>boş qoldirilsa umumiy</small>
+      <input class="field" name="variant-profit" type="number" min="0" step="1" placeholder="Umumiy sof foyda" value="${data.profit!==undefined?Number(data.profit):''}">
+    </label>
+    <label>Qoldiq <input class="field" name="variant-stock" type="number" min="0" step="1" value="${Number(data.stock||0)}"></label>
+    <label>Variant surati <input class="field one-variant-photo" name="variant-photo" type="file" accept="image/jpeg,image/png,image/webp"></label>
+   </div>
+   <input name="variant-sku" type="hidden" value="${esc(data.sku||'')}">
+   <input name="variant-image-key" type="hidden" value="${esc(data.image_key||'')}">
+   <input name="variant-image-url" type="hidden" value="${esc(data.image_url||'')}">
+   <div class="one-variant-result">${data.price?`<strong>Hisoblangan narx: ${sum(data.price)}</strong>`:`<span>Narx tannarx va foyda kiritilganda hisoblanadi.</span>`}
+      ${hasPicture?' · Surat bor':' · Surat hali biriktirilmagan'}</div>
+ </div>`;
+}
 function productDraftPreview(item){
  const missingTitle=!String(item.title||'').trim();
  const photo=item.image_key?'/api/media/'+encodeURIComponent(item.image_key):(item.image_url||'');
- const ready=item.status==='saved';
+ const ready=item.status==='saved',variants=Array.isArray(item.variants)?item.variants:[];
+ const defaultProfit=Number(item.target_profit??state.importDefaultProfit??0);
  return `<div class="one-product-preview">
-  <div class="one-product-head"><div><span class="one-product-kicker">${ready?'KATALOGGA SAQLANDI':'TAYYOR QORALAMA'}</span>
+   <div class="one-product-head"><div><span class="one-product-kicker">${ready?'KATALOGGA SAQLANDI':'MAHSULOT QORALAMASI'}</span>
     <h2>${esc(item.title||'Mahsulot nomini aniqlash kerak')}</h2>
-    <p>${esc(item.category||'Kategoriya hali aniqlanmagan')} · ${esc(item.sku||'Ichki kod avtomatik yaratiladi')}</p></div>
+    <p>${esc(item.category||'Kategoriya aniqlanmagan')} · ${esc(item.sku||'Ichki kod avtomatik yaratiladi')}</p></div>
     <button class="btn" data-action="import-start-new">${ico('plus',15)} Boshqa mahsulot</button>
-  </div>
-  <div class="one-product-main">
-   <div class="one-product-photo">${photo?`<img alt="Mahsulotning manbadagi surati" src="${esc(photo)}" referrerpolicy="no-referrer" loading="lazy">`:`<div class="one-product-no-photo">${ico('image',26)}<span>Rasm topilmadi</span></div>`}</div>
-   <form id="one-product-form" data-id="${esc(item.id)}" class="one-product-form">
-    ${missingTitle?`<label class="one-product-required">Faqat mahsulot nomini kiriting
-      <input class="field" name="title" required maxlength="180" placeholder="Masalan: 100 g atirli sovun" value="">
-     </label>`:`<div class="one-product-identified"><span>${ico('check',17)} Nomi aniqlandi</span><strong>${esc(item.title)}</strong></div>
-     <input type="hidden" name="title" value="${esc(item.title)}">`}
-    ${item.error?`<p class="one-product-note">${esc(item.error)}</p>`:''}
-    ${item.description?`<div class="one-product-description"><b>Tayyorlangan tavsif</b><p>${esc(item.description)}</p></div>`:''}
-    ${ready?`<p class="one-product-success">Mahsulot SellerAI katalogiga saqlandi. Uzum'da hech narsa o‘zgarmadi.</p>`:
-     `<details class="one-product-options">
-      <summary>Ma’lumotni tahrirlash yoki narx qo‘shish <span>Ixtiyoriy</span></summary>
-      <div class="one-product-options-grid">
-       ${!missingTitle?`<label>Nomini o‘zgartirish<input class="field" name="corrected_title" value="${esc(item.title||'')}" maxlength="180"></label>`:''}
-       <label>Tannarx (so‘m)<input class="field" name="cost" type="number" min="0" step="1" value="${Number(item.cost||0)}"></label>
-       <label>Sotuv narxi (so‘m)<input class="field" name="price" type="number" min="0" step="1" value="${Number(item.price||0)}"></label>
-       <label>Qoldiq<input class="field" name="stock" type="number" min="0" step="1" value="${Number(item.stock||0)}"></label>
-       <label>Kategoriya<input class="field" name="category" value="${esc(item.category||'')}" maxlength="100"></label>
-       <label>Ichki SKU<input class="field" name="sku" value="${esc(item.sku||'')}" maxlength="70"></label>
-       <label class="one-product-wide">Aniq faktlar<textarea class="field" name="notes" rows="2" maxlength="2500">${esc(item.notes||'')}</textarea></label>
-       <label class="one-product-wide">Tavsif<textarea class="field" name="description" rows="3" maxlength="3000">${esc(item.description||'')}</textarea></label>
+   </div>
+   <div class="one-product-main">
+    <div class="one-product-photo">${photo?`<img alt="Mahsulotning haqiqiy surati" src="${esc(photo)}" referrerpolicy="no-referrer" loading="lazy">`:`<div class="one-product-no-photo">${ico('image',26)}<span>Rasm aniqlanmadi</span></div>`}</div>
+    <form id="one-product-form" data-id="${esc(item.id)}" class="one-product-form">
+     ${missingTitle?`<label class="one-product-required">Mahsulot nomini kiriting
+       <input class="field" name="title" required maxlength="180" placeholder="Masalan: 500 ml şampun" value="">
+      </label>`:`<div class="one-product-identified"><span>${ico('check',17)} Nomi aniqlandi</span><strong>${esc(item.title)}</strong></div><input type="hidden" name="title" value="${esc(item.title)}">`}
+     ${item.error?`<p class="one-product-note">${esc(item.error)}</p>`:''}
+     ${item.description?`<details class="one-product-description"><summary>Tayyorlangan tavsif</summary><p>${esc(item.description)}</p></details>`:''}
+     ${ready?`<div class="one-product-success">
+       <p>Mahsulot katalogga saqlandi. Uzum'dagi narx va qoldiq özgarmadi.</p>
+       ${variants.length?`<ul>${variants.map(v=>`<li>${esc(v.value)} · ${esc(v.sku)} · ${v.price?sum(v.price):'Narx belgilanmagan'}</li>`).join('')}</ul>`:''}
+       </div>`:`
+      <div class="one-product-economics">
+       <h3>Mahsulot tannarxi va foydasi</h3>
+       <div class="one-product-economics-grid">
+        <label>Tannarx (so‘m)<input class="field" name="cost" type="number" min="0" step="1" placeholder="Masalan: 25000" value="${Number(item.cost||0)||''}"></label>
+        <label>Har donadan sof foyda (so‘m)<input class="field" name="profit" type="number" min="0" step="1" placeholder="Masalan: 10000" value="${defaultProfit||''}"></label>
+       </div>
+       <p class="one-product-price-result" id="one-product-price-result">${state.importTariffsConfirmed?'Narx tannarx va foyda asosida avtomatik hisoblanadi.':'Narx uçun komissiya va logistika sozlamalarini bir marta tasdiqlash kerak.'}</p>
       </div>
-     </details>
-     <div class="one-product-buttons"><button type="submit" class="btn btn-primary" ${state.importBusy?'disabled':''}>${ico('check',16)} Mahsulotni saqlash</button>
+      <details class="one-product-variants" ${variants.length?'open':''}>
+       <summary>${ico('layers',16)} Rang, hajm yoki ölc̆ham variantlari <span>${variants.length?variants.length+' ta mavjud':'Bo‘lmasa açmaysiz'}</span></summary>
+       <p class="import-help">Har bir variantning öz SKU'si, tannarxi, narxi, qoldiği va surati bölişi mumkin. Umumiy qiymatlar avtomatik meros olinadi.</p>
+       <div id="one-variant-list">${variants.map(importVariantRow).join('')}</div>
+       <button type="button" class="btn one-variant-add" data-action="import-add-variant">${ico('plus',15)} Variant qo‘şiş</button>
+      </details>
+      <details class="one-product-options"><summary>Qoşimça ma'lumotlarni tahrirlaş <span>Ixtiyoriy</span></summary>
+       <div class="one-product-options-grid">
+        ${!missingTitle?`<label>Nomini özgartiriş<input class="field" name="corrected_title" value="${esc(item.title||'')}" maxlength="180"></label>`:''}
+        <label>Sotuv narxi (qöl bilan)<input class="field" name="price" type="number" min="0" step="1" value="${Number(item.price||0)}"></label>
+        <label>Qoldiq<input class="field" name="stock" type="number" min="0" step="1" value="${Number(item.stock||0)}"></label>
+        <label>Kategoriya<input class="field" name="category" value="${esc(item.category||'')}" maxlength="100"></label>
+        <label>Ichki SKU<input class="field" name="sku" value="${esc(item.sku||'')}" maxlength="70"></label>
+        <label class="one-product-wide">Aniq faktlar<textarea class="field" name="notes" rows="2" maxlength="2500">${esc(item.notes||'')}</textarea></label>
+        <label class="one-product-wide">Tavsif<textarea class="field" name="description" rows="3" maxlength="3000">${esc(item.description||'')}</textarea></label>
+       </div>
+      </details>
+      <div class="one-product-buttons"><button type="submit" class="btn btn-primary" ${state.importBusy?'disabled':''}>${ico('check',16)} Mahsulotni saqlaş</button>
        <button type="button" class="btn" data-action="import-analyze" data-id="${esc(item.id)}" ${state.importBusy?'disabled':''}>${ico('sparkle',16)} Qayta tahlil</button>
-     </div>
-     <p class="import-help">Faqat mavjud faktlardan foydalaniladi. Narxni keyinroq qo‘shish mumkin. Saqlash Uzum'ga mahsulot joylamaydi.</p>`}
-   </form>
-  </div>
+      </div>
+      <p class="import-help">Ma'lumotlar yetişmasa, mahsulot qoralama sifatida saqlanadi. Uzum'ga avtomatik joylanmaydi.</p>`}
+    </form>
+   </div>
  </div>`;
 }
 function importCenterView(){
