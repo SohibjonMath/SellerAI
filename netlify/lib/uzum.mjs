@@ -106,7 +106,7 @@ async function storeSnapshot(db,shopId,products){
     current.push(product);bytes+=size;
   }
   if(current.length)chunks.push(current);
-  if(chunks.length>350)throw Error('Bu do‘konda yuklash hajmi chegaradan oshdi');
+  if(chunks.length>200)throw Error('Bu do‘konda yuklash hajmi chegaradan oshdi');
   const batch=db.batch();
   for(const doc of previous.docs)batch.delete(doc.ref);
   chunks.forEach((p,i)=>batch.set(ref.collection('parts').doc(String(i).padStart(5,'0')),{index:i,products:p}));
