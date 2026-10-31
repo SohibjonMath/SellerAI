@@ -269,8 +269,9 @@ async function updateOnePricePreview(){
  const cost=Number(form.querySelector('[name=cost]')?.value||0);
  const profit=Number(form.querySelector('[name=profit]')?.value||0);
  const variants=collectOneVariants().filter(v=>v.value);
- if(cost<=0||profit<=0){
-  target.textContent='Narx hisoblash uçun tannarx va kerakli sof foydani kiriting.';
+ if((cost<=0&&!variants.some(v=>Number(v.cost)>0))||
+    (profit<=0&&!variants.some(v=>Number(v.profit)>0))){
+  target.textContent='Narxni hisoblash uchun tannarx va kerakli sof foydani kiriting. Variant tannarxi alohida bölişi mumkin.';
   return;
  }
  const seq=++onePriceRequest;
@@ -281,7 +282,7 @@ async function updateOnePricePreview(){
   });
   if(seq!==onePriceRequest||!target.isConnected)return;
   target.textContent=answer.configured?
-   'Tavsiya qilingan narx: '+sum(answer.price)+' · Sof foyda: '+sum(answer.netProfit)+
+   (answer.price?'Asosiy narx: '+sum(answer.price)+' · Sof foyda: '+sum(answer.netProfit):'')+
    (answer.variants.length?' · Variantlar: '+answer.variants.map(v=>v.value+' '+(v.price?sum(v.price):'narx yo‘q')).join(' / '):''):
    'Tariflar tasdiqlanmagan: narx taxmin qilinmaydi. Mahsulotni qoralama sifatida saqlash mumkin.';
  }catch(e){if(seq===onePriceRequest&&target.isConnected)target.textContent=e.message}
