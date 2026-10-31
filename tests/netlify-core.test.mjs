@@ -9,7 +9,17 @@ test('password comparison and signed administrator cookie',()=>{
   assert.equal(comparePassword('incorrect',secret),false);
   const cookie=makeCookie(secret);
   assert.ok(authenticated(new Request('https://seller.test/api/me',{headers:{Cookie:cookie}}),secret));
-  assert.equal(authenticated(new Request('https://seller.test/api/me',{headers:{Cookie:cookie+'corrupted'}}),secret),false);
+  // A Set-Cookie string has attributes after ';'. Appending to those attributes
+  // does NOT change the signed session value, so it is not a tampering test.
+  const [sessionName, signedValue] = cookie.split(';',1)[0].split('=');
+  const [expiry, signature] = signedValue.split('.');
+  const invalidSignature = (signature[0]==='A'?'B':'A') + signature.slice(1);
+  const tamperedSignature = sessionName+'='+expiry+'.'+invalidSignature;
+  const tamperedExpiry = sessionName+'='+(Number(expiry)+60)+'.'+signature;
+  const requestWithCookie = value => new Request('https://seller.test/api/me',{headers:{Cookie:value}});
+  assert.equal(authenticated(requestWithCookie(tamperedSignature),secret),false);
+  assert.equal(authenticated(requestWithCookie(tamperedExpiry),secret),false);
+  assert.equal(authenticated(requestWithCookie(cookie),secret+'-other-key'),false);
 });
 test('validate product data and never accept invalid SKU or image URLs',()=>{
   const base={sku:'STOCK-01',title:'Test',price:15000,cost:11000,stock:3};
