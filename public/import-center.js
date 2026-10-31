@@ -95,35 +95,45 @@ function importEditForm(item){
   </form>`;
 }
 function importCenterView(){
-  const items=state.imports||[];
-  const counts={all:items.length,review:items.filter(v=>v.status==='review').length,
-    needs_info:items.filter(v=>v.status==='needs_info').length,saved:items.filter(v=>v.status==='saved').length};
-  const visible=state.importFilter==='all'?items:items.filter(v=>v.status===state.importFilter);
-  return `${title('Aqlli import markazi','Bir neça havola yoki CSV fayldan mahsulotlarni to‘plab, tekşirib katalogga qo‘şing.')}
-  <div class="import-layout"><section class="panel"><div class="panel-head"><div><h2>Mahsulotlarni import qiliş</h2><p class="panel-sub">Har bir mahsulot alohida qoralama böladi</p></div>${ico('upload',20)}</div>
-    <form id="import-batch-form" class="panel-body import-form">
-      <label for="import-text">Havolalar yoki mahsulotlar (har qatorda bittadan)</label>
-      <textarea class="field" id="import-text" name="lines" rows="6" placeholder="https://detail.1688.com/offer/123456.html&#10;Mahsulot nomi | SKU-101 | 25000 | 39000 | 10 | Rang: oq, 100 g" maxlength="80000">${esc(state.importInput||'')}</textarea>
-      <p class="import-help">Qator: nom | SKU | tannarx | sotuv narxi | qoldiq | aniq xususiyatlar. Havolani alohida qatorga qo‘ying.</p>
-      <label for="import-csv">CSV fayl (Excel'dan CSV sifatida saqlangan)</label>
-      <input id="import-csv" class="field import-file" name="csv" type="file" accept=".csv,text/csv">
-      <p class="import-help">CSV ustunlari: title, sku, category, description, notes, cost, price, stock, url. Bir importda 300 tagacha qator, serverga 30 talik bölib yuboriladi. Rasm uchun image_url ustunidan foydalaning.</p>
-      <button type="submit" class="btn btn-primary" ${state.importBusy?'disabled':''}>${ico('upload',16)} Import qiliş</button>
-      <p class="import-notice" id="import-feedback" role="status" aria-live="polite">${esc(state.importStatus||'Import boshlanmagan.')}</p>
-    </form></section>
-    <section class="panel import-guide"><div class="panel-head"><h2>İşlaş tartibi</h2></div>
-      <div class="panel-body"><div class="import-step"><strong>01</strong><span>Havola yoki fayldan yozuv yaratilişi</span></div>
-      <div class="import-step"><strong>02</strong><span>AI aniq faktlarni ikki tilda tayyorlaşi</span></div>
-      <div class="import-step"><strong>03</strong><span>Nom, SKU, narx va rasmlarni tekşiriş</span></div>
-      <div class="import-step"><strong>04</strong><span>Mahsulotni katalogga qoralama sifatida saqlaş</span></div>
-      <div class="info-note">${ico('info',17)} <span>Ba’zi marketpleyslar mahsulot sahifasini avtomatik öqishga ruxsat bermaydi. Böyle holatda aniq faktlarni özingiz kiriting. Uzum'ga avtomatik joylaş faollashtirilmagan.</span></div></div>
-    </section></div>
-  <section class="panel import-queue">
-    <div class="panel-head import-queue-header"><div><h2>Tayyorlaş navbati</h2><p class="panel-sub">${counts.all} ta import yozuvi</p></div>
-      <button class="btn" data-action="import-analyze-all" ${state.importBusy||!items.some(x=>x.status==='new'||x.status==='needs_info')?'disabled':''}>${ico('sparkle',15)} Navbatni tahlil qiliş</button></div>
-    <div class="import-filters">${[['all','Barchasi'],['new','Kutilmoqda'],['review','Tekşiriş'],['needs_info','Töliqtiriş'],['saved','Katalogda']].map(([v,name])=>`<button class="import-filter ${state.importFilter===v?'active':''}" data-action="import-filter" data-value="${v}">${name}</button>`).join('')}</div>
-    <div class="import-cards">${visible.length?visible.map(importCard).join(''):`<div class="empty"><h3>Bu yerda hali mahsulot yöq</h3><p>Yuqoridagi maydonga mahsulot havolalari yoki CSV fayl qo‘şing.</p></div>`}</div>
-  </section>`;
+ const items=state.imports||[];
+ const visible=state.importFilter==='all'?items:items.filter(i=>i.status===state.importFilter);
+ return `${title('Mahsulotni avtomatik tayyorlash','Havola yoki bitta surat — qolganini SellerAI tayyorlashga harakat qiladi.')}
+ <section class="panel quick-import">
+  <div class="panel-head"><div><h2>Mahsulotingizni yuboring</h2><p class="panel-sub">SKU, kategoriya va tavsifni oldindan to‘ldirish shart emas.</p></div>${ico('sparkle',20)}</div>
+  <div class="panel-body quick-import-body">
+   <form id="import-quick-form" class="quick-import-form">
+    <label for="import-quick">Mahsulot havolasi yoki nomi</label>
+    <div class="quick-import-line"><input id="import-quick" name="item" class="field" maxlength="1800" required
+      placeholder="1688, Alibaba yoki Uzum havolasini qo‘ying" value="${esc(state.importInput||'')}">
+     <button class="btn btn-primary" type="submit" ${state.importBusy?'disabled':''}>${ico('sparkle',16)} Tayyorlash</button></div>
+   </form>
+   <div class="quick-import-separator"><span>yoki</span></div>
+   <form id="import-photo-form" class="quick-import-photo">
+    <label for="import-photo">Surat orqali mahsulotni aniqlash</label>
+    <div class="quick-import-line"><input id="import-photo" class="field" name="photo" type="file" accept="image/jpeg,image/png,image/webp" required>
+     <button class="btn" type="submit" ${state.importBusy?'disabled':''}>${ico('image',16)} Suratni tahlil qilish</button></div>
+   </form>
+   <p class="import-notice" id="import-feedback" role="status" aria-live="polite">${esc(state.importStatus||'SellerAI mahsulotni aniqlaydi va tekşirishga qoralama tayyorlaydi.')}</p>
+   <details class="quick-import-advanced">
+    <summary>Ko‘p mahsulot qo‘shish (CSV / ro‘yxat)</summary>
+    <form id="import-batch-form" class="import-form">
+     <label for="import-text">Havolalar yoki mahsulotlar, har qatorda bittadan</label>
+     <textarea class="field" id="import-text" name="lines" rows="4" placeholder="https://detail.1688.com/offer/123456.html" maxlength="80000"></textarea>
+     <label for="import-csv">CSV fayl</label>
+     <input id="import-csv" class="field import-file" name="csv" type="file" accept=".csv,text/csv">
+     <button class="btn" type="submit" ${state.importBusy?'disabled':''}>${ico('upload',16)} Ommaviy import</button>
+     <p class="import-help">CSV ustunlari: title, sku, category, description, notes, price, cost, stock, url, image_url. Har partiyada 30 tadan ishlanadi.</p>
+    </form>
+   </details>
+   <p class="import-help">Manba sahifasi bloklangan yoki AI ulanmagan bo‘lsa, mavjud bo‘lmagan faktlar uydirilmaydi. Narx yoki boshqa muhim ma’lumot yetishmasa, faqat o‘shani so‘raydi.</p>
+  </div>
+ </section>
+ <section class="panel import-queue">
+  <div class="panel-head import-queue-header"><div><h2>Tayyor mahsulot qoralamalari</h2><p class="panel-sub">${items.length} ta yozuv</p></div>
+   <button class="btn" data-action="import-analyze-all" ${state.importBusy||!items.some(i=>i.status==='new'||i.status==='needs_info')?'disabled':''}>${ico('sparkle',15)} Qolganlarini tayyorlash</button></div>
+  <div class="import-filters">${[['all','Barchasi'],['new','Kutilmoqda'],['review','Tekşirish'],['needs_info','Ma’lumot kerak'],['saved','Katalogda']].map(([v,label])=>`<button class="import-filter ${state.importFilter===v?'active':''}" data-action="import-filter" data-value="${v}">${label}</button>`).join('')}</div>
+  <div class="import-cards">${visible.length?visible.map(importCard).join(''):`<div class="empty"><h3>Hali mahsulot yo‘q</h3><p>Havola yoki suratni yuqoriga yuboring.</p></div>`}</div>
+ </section>`;
 }
 async function loadImports(quiet=false){
   try{
@@ -170,7 +180,68 @@ async function importCenterAction(action,node){
     finally{state.importBusy=false;render()}
   }
 }
+async function quickImport(item){
+ const input=String(item||'').trim();
+ if(!input)throw Error('Mahsulot havolasi yoki nomini kiriting');
+ const row=/^https?:\/\//i.test(input)?{source_url:input}:{title:input};
+ const saved=await api('/api/imports',{method:'POST',body:JSON.stringify({items:[row]})});
+ const id=saved.ids?.[0];
+ if(!id)throw Error('Import qoralamasi yaratilmadi');
+ await loadImports(true);
+ const rowData=(state.imports||[]).find(x=>x.id===id);
+ if(rowData?.status!=='saved'){
+  state.importStatus='Mahsulot ma’lumotlari izlanmoqda...';
+  const response=await api('/api/imports/'+id+'/analyze',{method:'POST',body:'{}'});
+  const position=state.imports.findIndex(x=>x.id===id);
+  if(position>=0)state.imports[position]=response.item;
+ }
+ state.importFilter='all';
+ state.importInput='';
+ state.importStatus='Qoralama tayyorlandi. Ma’lumotlarni tekşiring.';
+}
+async function prepareImportPhoto(file){
+ if(!(file instanceof File)||!file.size)throw Error('Mahsulot suratini tanlang');
+ if(!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('JPG, PNG yoki WebP surat kerak');
+ if(file.size<=2200000)return file;
+ const bitmap=await createImageBitmap(file);
+ try{
+  const ratio=Math.min(1,1500/Math.max(bitmap.width,bitmap.height));
+  const canvas=document.createElement('canvas');
+  canvas.width=Math.max(1,Math.round(bitmap.width*ratio));
+  canvas.height=Math.max(1,Math.round(bitmap.height*ratio));
+  const ctx=canvas.getContext('2d');
+  if(!ctx)throw Error('Suratni o‘qib bo‘lmadi');
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);
+  const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.8));
+  if(!blob||blob.size>4500000)throw Error('Suratni kichraytirib bo‘lmadi');
+  return new File([blob],'sellerai-import.jpg',{type:'image/jpeg'});
+ }finally{bitmap.close()}
+}
 document.addEventListener('submit',async event=>{
+ if(event.target.id==='import-quick-form'){
+  event.preventDefault();if(state.importBusy)return;
+  state.importBusy=true;const value=document.getElementById('import-quick')?.value||'';
+  state.importInput=value;
+  try{await quickImport(value);toast('Qoralama tayyorlandi')}
+  catch(e){state.importStatus='Tayyorlab bo‘lmadi: '+e.message;toast(e.message,true)}
+  finally{state.importBusy=false;render()}return;
+ }
+ if(event.target.id==='import-photo-form'){
+  event.preventDefault();if(state.importBusy)return;
+  state.importBusy=true;
+  try{
+   const file=document.getElementById('import-photo')?.files?.[0];
+   const data=new FormData();data.append('photo',await prepareImportPhoto(file));
+   const result=await api('/api/imports/photo',{method:'POST',body:data});
+   await loadImports(true);
+   state.importFilter='all';
+   state.importStatus=result.duplicate?'Bu surat avval kiritilgan.':'Surat tahlil qilindi, qoralama tayyor.';
+   toast(state.importStatus);
+  }catch(e){state.importStatus=e.message;toast(e.message,true)}
+  finally{state.importBusy=false;render()}return;
+ }
+
   if(event.target.id==='import-batch-form'){
     event.preventDefault();if(state.importBusy)return;
     const input=$('#import-text')?.value||'',file=$('#import-csv')?.files?.[0];
