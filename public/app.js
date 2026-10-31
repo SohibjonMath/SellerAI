@@ -2,7 +2,7 @@ const $ = s => document.querySelector(s);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = v => new Intl.NumberFormat('uz-UZ').format(Number(v)||0);
 const sum = v => `${fmt(v)} so‘m`;
-const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false,uzumNetwork:null,migrationBusy:false,migrationStatus:'',firebaseSetupRequired:false,firebaseSetupMessage:'' };
+const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false,uzumNetwork:null,migrationBusy:false,migrationStatus:'' };
 const paths={dashboard:'Bosh sahifa',products:'Mahsulotlar',ai:'AI Studio',integrations:'Integratsiyalar',settings:'Sozlamalar'};
 const icons={
   grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
@@ -106,23 +106,6 @@ async function loadUzumProducts(){
   const data=await api('/api/integrations/uzum/products');
   state.uzumProducts=data.snapshots||[];
 }
-function firebaseSetupPanel(){
-  return `<section class="panel firebase-setup-panel">
-    <div class="panel-head"><div><h2>Firebase Firestore'ni ulash</h2><p class="panel-sub">Firebase xizmat kalitini JSON fayldan bir marta yuklang. ENV kiritish shart emas.</p></div>${ico('lock',20)}</div>
-    <div class="panel-body">
-      <p class="muted migration-explainer">Firebase Project settings → Service accounts → Generate new private key bo‘limidan kalitni oling. U serverda shifrlanadi.</p>
-      <form id="firebase-setup-form" class="migration-form" autocomplete="off">
-        <div class="form-group"><label for="firebase-file">Firebase JSON kaliti</label><input id="firebase-file" class="field" name="file" type="file" accept=".json,application/json" required></div>
-        <div class="form-group"><label for="firebase-admin-confirm">Administrator paroli</label><input id="firebase-admin-confirm" class="field" name="adminPassword" type="password" minlength="12" maxlength="512" autocomplete="current-password" required></div>
-        <button type="submit" class="btn btn-primary" id="firebase-setup-submit">${ico('lock',16)} Firebase'ga ulash</button>
-      </form>
-      <p id="firebase-setup-status" class="migration-result" role="status" aria-live="polite">${esc(state.firebaseSetupMessage||'JSON kalitni GitHub yoki chatga yubormang.')}</p>
-    </div>
-  </section>`;
-}
-function firebaseSetupView(){
-  return `<div class="login-page"><section class="login-visual"><div class="eyebrow">SELLERAI</div><h1>Ma’lumotlar bazasini <span>ulang</span></h1><p>Firebase kalitini bir marta yuklang va mahsulotlarni boshqarishni boshlang.</p></section><main class="login-main"><div class="firebase-setup-content">${firebaseSetupPanel()}<button class="btn" data-action="logout">${ico('logout',15)} Hisobdan chiqish</button></div></main></div>`;
-}
 function settings(){
   return `
   ${title('Sozlamalar','Xavfsizlik, xizmatlar va mavjud ma’lumotlarni ko‘chirish.')}
@@ -146,7 +129,6 @@ function settings(){
       </div>
     </section>
   </div>
-  ${firebaseSetupPanel()}
   <section class="panel migration-panel">
     <div class="panel-head"><div><h2>Eski ma’lumotlarni ko‘chirish</h2><p class="panel-sub">Cloudflare'dagi mahsulotlar, rasmlar, variantlar va harakatlar tarixini saqlab o‘tkazing.</p></div>${ico('download',20)}</div>
     <div class="panel-body">
@@ -162,7 +144,7 @@ function settings(){
 function defaultProduct(){return {id:'',title:'',sku:'',category:'',description:'',price:0,cost:0,stock:0,status:'draft',image_key:'',image_url:'',variants:[]}}
 function modalView(){const p=state.modal?.product||defaultProduct();const editing=Boolean(p.id);return `<div class="modal-backdrop" id="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-heading"><div class="modal-title"><h2 id="modal-heading">${editing?'Mahsulotni tahrirlash':'Yangi mahsulot'}</h2><button class="icon-button" data-action="close-modal" aria-label="Yopish">${ico('close',19)}</button></div><form id="product-form" style="display:contents"><div class="modal-scroll"><div class="form-grid"><div class="form-group span2"><label for="p-title">Mahsulot nomi *</label><input class="field" id="p-title" name="title" maxlength="160" required value="${esc(p.title)}" placeholder="Mahsulotning to‘liq nomi"></div><div class="form-group"><label for="p-sku">SKU / Artikul *</label><input class="field" id="p-sku" name="sku" maxlength="70" required pattern="[a-zA-Z0-9._-]+" value="${esc(p.sku)}" placeholder="MASALAN-001"></div><div class="form-group"><label for="p-category">Kategoriya</label><input class="field" id="p-category" name="category" maxlength="80" value="${esc(p.category)}" placeholder="Hammom aksessuarlari"></div><div class="form-group"><label for="p-price">Sotuv narxi (so‘m)</label><input class="field" id="p-price" name="price" type="number" min="0" step="1" required value="${esc(p.price)}"></div><div class="form-group"><label for="p-cost">Tannarx (so‘m)</label><input class="field" id="p-cost" name="cost" type="number" min="0" step="1" required value="${esc(p.cost)}"></div><div class="form-group"><label for="p-stock">Ombor qoldig‘i</label><input class="field" id="p-stock" name="stock" type="number" min="0" step="1" required value="${esc(p.stock)}"></div><div class="form-group"><label for="p-status">Karta holati</label><select id="p-status" name="status"><option value="draft" ${p.status==='draft'?'selected':''}>Qoralama</option><option value="ready" ${p.status==='ready'?'selected':''}>Tayyor</option></select></div><div class="form-group span2"><label for="p-description">Tavsif</label><textarea id="p-description" name="description" maxlength="8000" placeholder="Mahsulot xususiyatlari va tavsifi">${esc(p.description)}</textarea></div><div class="form-group span2"><label for="p-image-url">Mahsulot rasmi</label><input class="field" id="p-image-url" name="image_url" type="url" maxlength="1500" placeholder="https://... (ixtiyoriy)" value="${esc(p.image_url)}"><input class="field" id="p-image-file" type="file" accept="image/jpeg,image/png,image/webp"><span class="help">JPG, PNG yoki WebP fayl — 5 MB gacha. Fayl yuklansa tashqi URL o‘rniga o‘sha ishlatiladi.</span>${img(p)?`<div class="preview-product"><img class="preview-image" id="preview-upload" src="${esc(img(p))}" alt="Mahsulot rasmi"><span class="muted" style="font-size:12px">Joriy rasm</span><button type="button" class="btn btn-sm btn-danger" data-action="remove-image">Olib tashlash</button></div>`:`<div class="preview-product" id="preview-wrap" style="display:none"><img class="preview-image" id="preview-upload" alt="Yangi rasm"><span class="muted" style="font-size:12px">Tanlangan rasm</span></div>`}</div><div class="form-group span2"><label>Variantlar (rang, o‘lcham va boshqalar)</label><div id="variant-list">${(p.variants||[]).map(v=>variantRow(v.name,v.value)).join('')}</div>${btn('add-variant',`${ico('plus',15)} Variant qo‘shish`,'btn-sm','type="button"')}</div></div></div><div class="modal-footer"><button class="btn" type="button" data-action="close-modal">Bekor qilish</button><button class="btn btn-primary" type="submit" id="save-product">${ico('check',16)} ${editing?'Saqlash':'Mahsulot qo‘shish'}</button></div></form></section></div>`}
 function variantRow(name='',value=''){return `<div class="variant-line"><input class="field" name="variant-name" maxlength="50" placeholder="Masalan, Rang" value="${esc(name)}" style="padding:10px"><input class="field" name="variant-value" maxlength="100" placeholder="Masalan, Pushti" value="${esc(value)}" style="padding:10px"><button class="icon-button" type="button" data-action="remove-variant" aria-label="Variantni olib tashlash">${ico('trash',16)}</button></div>`}
-function render(){const app=$('#app');if(!state.authorized){app.innerHTML=loginView();return}if(state.firebaseSetupRequired){app.innerHTML=firebaseSetupView();return}const pages={dashboard,products,ai:aiStudio,integrations,settings};app.innerHTML=shell((pages[state.page]||dashboard)())}
+function render(){const app=$('#app');if(!state.authorized){app.innerHTML=loginView();return}const pages={dashboard,products,ai:aiStudio,integrations,settings};app.innerHTML=shell((pages[state.page]||dashboard)())}
 async function reload(){const [p,s]=await Promise.all([api('/api/products'),api('/api/stats')]);state.products=p.products;state.stats=s.stats;state.activity=s.activity||[];render()}
 function csvExport(){const rows=[['SKU','Nomi','Kategoriya','Narx (so‘m)','Tannarx (so‘m)','Qoldiq','Holat','Tavsif','Variantlar'],...state.products.map(p=>[p.sku,p.title,p.category,p.price,p.cost,p.stock,p.status,p.description,JSON.stringify(p.variants)])];const quoted=v=>{let str=String(v??'');if(/^[=+@\-\t\r]/.test(str))str="'"+str;return '"'+str.replaceAll('"','""')+'"'};const content='\uFEFF'+rows.map(row=>row.map(quoted).join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='sellerai-mahsulotlar.csv';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('CSV fayl tayyorlandi')}
 async function clickAction(action,node){
@@ -253,36 +235,7 @@ document.addEventListener('input',event=>{if(event.target.id==='uzum-token'){con
 document.addEventListener('change',event=>{if(event.target.id==='filter-products'){state.filter=event.target.value;const target=$('#product-table');if(target)target.innerHTML=productRows()}});
 document.addEventListener('submit',async event=>{
   if(event.target.id==='login-form'){
-    event.preventDefault();const submit=$('#login-submit');submit.disabled=true;try{const response=await api('/api/login',{method:'POST',body:JSON.stringify({password:new FormData(event.target).get('password')})});state.authorized=true;state.firebaseSetupRequired=!response.firebase_configured;state.configError='';if(state.firebaseSetupRequired)render();else await reload();toast('Xush kelibsiz')}catch(e){toast(e.message,true)}finally{const b=$('#login-submit');if(b)b.disabled=false}return;
-  }
-  if(event.target.id==='firebase-setup-form'){
-    event.preventDefault();
-    const button=$('#firebase-setup-submit'),target=$('#firebase-setup-status');
-    const data=new FormData(event.target),file=data.get('file');
-    if(!(file instanceof File)||file.size>16000||file.size<150){
-      if(target)target.textContent='Firebase JSON faylini tanlang (16 KB gacha).';
-      return;
-    }
-    if(button){button.disabled=true;button.textContent='Ulanish tekshirilmoqda...'}
-    try{
-      const result=await api('/api/setup/firebase',{method:'POST',body:data});
-      if(!result.verified){
-        state.firebaseSetupMessage=result.error||'Kalit saqlandi. Firestore Database holatini tekshiring.';
-        if(target)target.textContent=state.firebaseSetupMessage;
-        return;
-      }
-      state.firebaseSetupRequired=false;state.firebaseSetupMessage='';
-      state.page='dashboard';
-      await reload();
-      toast('Firebase muvaffaqiyatli ulandi');
-    }catch(e){
-      state.firebaseSetupMessage=e.message;
-      if(target)target.textContent=e.message;
-      toast(e.message,true);
-    }finally{
-      if(button?.isConnected){button.disabled=false;button.textContent='Firebase ulash'}
-    }
-    return;
+    event.preventDefault();const submit=$('#login-submit');submit.disabled=true;try{await api('/api/login',{method:'POST',body:JSON.stringify({password:new FormData(event.target).get('password')})});state.authorized=true;state.configError='';await reload();toast('Xush kelibsiz')}catch(e){toast(e.message,true)}finally{const b=$('#login-submit');if(b)b.disabled=false}return;
   }
   if(event.target.id==='product-form'){
     event.preventDefault();if(state.busy)return;state.busy=true;const submit=$('#save-product');submit.disabled=true;
@@ -372,4 +325,4 @@ document.addEventListener('submit',async event=>{
     try{const data=await api('/api/ai/draft',{method:'POST',body:JSON.stringify(state.aiInput)});state.aiDraft=data.draft;toast('AI tavsif tayyor')}catch(e){toast(e.message,true)}finally{state.busy=false;render()}return;
   }
 });
-(async()=>{try{const me=await api('/api/me');state.authorized=true;state.firebaseSetupRequired=!me.firebase_configured;if(state.firebaseSetupRequired)render();else await reload()}catch(e){state.authorized=false;state.configError=/(sozlan|sozlang|bog‘lanmagan|Firebase|faol emas)/i.test(e.message)?e.message:'';render()}})();
+(async()=>{try{await api('/api/me');state.authorized=true;await reload()}catch(e){state.authorized=false;state.configError=/(sozlan|sozlang|bog‘lanmagan|Firebase|FIREBASE_SERVICE_ACCOUNT_JSON|faol emas)/i.test(e.message)?e.message:'';render()}})();
