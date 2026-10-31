@@ -1,6 +1,5 @@
 import { getDb, saveProduct, deleteProduct, addActivity, productToUI, documentToObject } from '../lib/firebase.mjs';
 import { getStore } from '@netlify/blobs';
-import { firebaseCredentialStatus, saveFirebaseAccount } from '../lib/firebase-credentials.mjs';
 import OpenAI from 'openai';
 import { json,fail,uuid,adminSecret,makeCookie,authenticated,comparePassword,hmacIp,
   assertOrigin,bodyJson,cleanProduct,safeError } from '../lib/common.mjs';
@@ -11,24 +10,12 @@ const store=()=>getStore({name:'sellerai-images',consistency:'strong'});
 const MAX_IMAGE=5000000;
 const loginStore=()=>getStore({name:'sellerai-auth-attempts',consistency:'strong'});
 
-async function firebaseReady(){
-  const state=await firebaseCredentialStatus();
-  if(!state.configured)return false;
-  try{
-    await (await getDb()).collection('sellerai_products').limit(1).get();
-    return true;
-  }catch{return false}
-}
-
-
 async function api(req,context){
   const url=new URL(req.url),path=url.pathname,method=req.method;
   if(path==='/api/health'&&method==='GET'){
-    if(!process.env.ADMIN_PASSWORD)
+    if(!process.env.ADMIN_PASSWORD || !process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
       return json({status:'needs_setup',platform:'Netlify',database:'Firebase Firestore'},503);
     try{
-      const state=await firebaseCredentialStatus();
-      if(!state.configured)return json({status:'needs_firebase',platform:'Netlify',database:'Firebase Firestore'},503);
       await (await getDb()).collection('sellerai_products').limit(1).get();
       return json({status:'ok',platform:'Netlify',database:'Firebase Firestore'});
     }catch{
@@ -51,36 +38,13 @@ async function api(req,context){
       return fail('Parol noto‘g‘ri',401);
     }
     await store.delete(key);
-    return json({ok:true,firebase_configured:await firebaseReady()},200,{'Set-Cookie':makeCookie(secret)});
+    await (await getDb()).collection('sellerai_products').limit(1).get();
+    return json({ok:true},200,{'Set-Cookie':makeCookie(secret)});
   }
   if(!authenticated(req,secret))return fail('Avval tizimga kiring',401);
-  if(path==='/api/me'&&method==='GET'){
-    return json({authenticated:true,product:'SellerAI',firebase_configured:await firebaseReady()});
-  }
+  if(path==='/api/me'&&method==='GET')return json({authenticated:true,product:'SellerAI'});
   if(path==='/api/logout'&&method==='POST')
     return json({ok:true},200,{'Set-Cookie':'sellerai_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict'});
-  if(path==='/api/setup/firebase'&&method==='GET') {
-    return json(await firebaseCredentialStatus());
-  }
-  if(path==='/api/setup/firebase'&&method==='POST') {
-    if(context?.deploy?.context && context.deploy.context!=='production')
-      return fail('Firebase kalitini faqat asosiy sayt orqali sozlash mumkin',403);
-    if(Number(req.headers.get('content-length')||0)>35000)return fail('Fayl hajmi chegaradan oshdi',413);
-    const data=await req.formData();
-    const confirm=String(data.get('adminPassword')||'');
-    if(!comparePassword(confirm,secret))return fail('Administrator paroli noto‘g‘ri',403);
-    const file=data.get('file');
-    if(!(file instanceof File)||file.size>16000||file.size<150)
-      return fail('Firebase JSON faylini tanlang (16 KB gacha)',400);
-    const result=await saveFirebaseAccount(await file.text(),secret);
-    try {
-      await (await getDb()).collection('sellerai_products').limit(1).get();
-      return json({saved:true,verified:true,project_id:result.project_id});
-    } catch {
-      return json({saved:true,verified:false,project_id:result.project_id,
-        error:'Kalit saqlandi, lekin Firestore bilan aloqa tasdiqlanmadi. Firestore Database yoqilganini tekshiring'});
-    }
-  }
   const db=await getDb();
   const market=await handleUzum(req,db,secret,path,method);
   if(market)return market;
