@@ -33,7 +33,7 @@ export function validateServiceAccount(account){
     auth_uri:account.auth_uri||'https://accounts.google.com/o/oauth2/auth'
   };
 }
-function encryptAccount(account,adminPassword){
+export function encryptAccount(account,adminPassword){
   const salt=randomBytes(16),iv=randomBytes(12);
   const key=scryptSync(adminPassword,salt,32);
   const cipher=createCipheriv('aes-256-gcm',key,iv);
@@ -41,7 +41,7 @@ function encryptAccount(account,adminPassword){
   return {version:FORMAT,salt:salt.toString('base64'),iv:iv.toString('base64'),
     ciphertext:encrypted.toString('base64'),tag:cipher.getAuthTag().toString('base64')};
 }
-function decryptAccount(envelope,adminPassword){
+export function decryptAccount(envelope,adminPassword){
   if(envelope?.version!==FORMAT)throw Error('Firebase kalitining saqlangan formati noto‘g‘ri');
   const salt=Buffer.from(envelope.salt,'base64'),iv=Buffer.from(envelope.iv,'base64');
   const tag=Buffer.from(envelope.tag,'base64');
