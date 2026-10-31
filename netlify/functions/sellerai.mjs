@@ -15,7 +15,7 @@ async function api(req,context){
     if(!process.env.ADMIN_PASSWORD||!process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
       return json({status:'needs_setup',platform:'Netlify',database:'Firebase Firestore'},503);
     try{
-      await getDb().collection('products').limit(1).get();
+      await getDb().collection('sellerai_products').limit(1).get();
       return json({status:'ok',platform:'Netlify',database:'Firebase Firestore'});
     }catch{
       return json({status:'database_unavailable',platform:'Netlify',database:'Firebase Firestore'},503);
@@ -26,7 +26,7 @@ async function api(req,context){
   const secret=adminSecret(),db=getDb();
   if(path==='/api/login'&&method==='POST'){
     const hash=hmacIp(context?.ip||'unknown',secret),now=Math.floor(Date.now()/1000);
-    const loginRef=db.collection('login_attempts').doc(hash);
+    const loginRef=db.collection('sellerai_login_attempts').doc(hash);
     const previous=(await loginRef.get()).data();
     if(previous&&now-Number(previous.window_start)<900&&previous.failed_count>=8)
       return fail('Kirish urinishlari ko‘paydi. 15 daqiqadan keyin urinib ko‘ring',429);
@@ -53,8 +53,8 @@ async function api(req,context){
   if(migration)return migration;
   if(path==='/api/stats'&&method==='GET'){
     const [allProducts,history]=await Promise.all([
-      db.collection('products').select('stock','price','cost','status').get(),
-      db.collection('activity').orderBy('created_at','desc').limit(8).get()
+      db.collection('sellerai_products').select('stock','price','cost','status').get(),
+      db.collection('sellerai_activity').orderBy('created_at','desc').limit(8).get()
     ]);
     const stats={total:0,ready:0,stock:0,capital:0,potential_revenue:0};
     for(const d of allProducts.docs){
@@ -68,7 +68,7 @@ async function api(req,context){
   if(path==='/api/products'&&method==='GET'){
     const q=(url.searchParams.get('q')||'').trim().toLowerCase().slice(0,80),
       status=url.searchParams.get('status');
-    const snapshot=await db.collection('products').orderBy('updated_at','desc').limit(500).get();
+    const snapshot=await db.collection('sellerai_products').orderBy('updated_at','desc').limit(500).get();
     let products=snapshot.docs.map(doc=>productToUI(documentToObject(doc)));
     if(q)products=products.filter(p=>[p.title,p.sku,p.category].some(v=>String(v||'').toLowerCase().includes(q)));
     if(status==='draft'||status==='ready')products=products.filter(p=>p.status===status);
@@ -120,7 +120,7 @@ async function api(req,context){
       'X-Content-Type-Options':'nosniff'}});
   }
   if(media&&method==='DELETE'){
-    if(!(await db.collection('products').where('image_key','==',media[1]).limit(1).get()).empty)
+    if(!(await db.collection('sellerai_products').where('image_key','==',media[1]).limit(1).get()).empty)
       return fail('Rasm mahsulotga biriktirilgan',409);
     await store().delete(media[1]);
     return json({ok:true});
@@ -129,7 +129,7 @@ async function api(req,context){
   return fail('Bunday xizmat topilmadi',404);
 }
 async function removeUnused(db,key){
-  const ref=await db.collection('products').where('image_key','==',key).limit(1).get();
+  const ref=await db.collection('sellerai_products').where('image_key','==',key).limit(1).get();
   if(ref.empty)await store().delete(key);
 }
 async function aiDraft(req){
