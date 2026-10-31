@@ -258,7 +258,9 @@ export async function handleImports(req,db,path,method){
       keywords:item.keywords||[],source_url:item.source_url||'',import_id:id};
     const result=await saveProduct(db,details,productId);
     await addActivity(db,productId,'imported',draft.title);
-    await ref.update({status:'saved',product_id:productId,updated_at:now(),quality:productQuality(value)});
+    await ref.update({status:'saved',product_id:productId,updated_at:now(),
+      cost:value.cost,price,target_profit:baseProfit,stock:draft.stock,
+      variants:prepared.variants,quality:productQuality({...value,price})});
     return json({product:productToUI(result.product),priceAutoCalculated,variantPricesCalculated:prepared.priced,variantPricesMissing:prepared.unpriced});
   }
   return fail('Import xizmati topilmadi',404);
