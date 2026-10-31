@@ -42,3 +42,21 @@ test('if item title is known it never demands another typed name',()=>{
   assert.doesNotMatch(html,/name="title" required/);
   assert.match(html,/type="hidden" name="title"/);
 });
+
+test('variants and per-item economics appear inside the same form, not in a separate page',()=>{
+  const item={id:'c'.repeat(64),title:'Şampun',sku:'AUTO-003',status:'review',
+    cost:25000,target_profit:10000,price:0,stock:0,
+    variants:[{name:'Hajm',value:'250 ml',sku:'AUTO-003-V01',price:38000,cost:22000,profit:9000,stock:4}]};
+  const {view}=show({imports:[item],importActive:item.id,importBusy:false,importStatus:'',
+    importDefaultProfit:10000,importTariffsConfirmed:true});
+  const html=view.importCenterView();
+  assert.equal((html.match(/id="one-product-form"/g)||[]).length,1);
+  assert.match(html,/name="cost"/);
+  assert.match(html,/name="profit"/);
+  assert.match(html,/name="variant-cost"/);
+  assert.match(html,/name="variant-profit"/);
+  assert.match(html,/name="variant-stock"/);
+  assert.match(html,/name="variant-photo"/);
+  assert.match(html,/250 ml/);
+  assert.match(html,/Rang, hajm yoki/);
+});
