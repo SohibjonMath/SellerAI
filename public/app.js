@@ -2,7 +2,7 @@ const $ = s => document.querySelector(s);
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = v => new Intl.NumberFormat('uz-UZ').format(Number(v)||0);
 const sum = v => `${fmt(v)} so‘m`;
-const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false,uzumNetwork:null,migrationBusy:false,migrationStatus:'' };
+const state = { authorized:false,page:'dashboard',products:[],stats:null,activity:[],search:'',filter:'all',modal:null,aiDraft:null,aiInput:{name:'',category:'',details:''},busy:false,mobile:false,uploadPreview:null,configError:'',uzum:{connected:false,shops:[],snapshots:[]},uzumProducts:[],integrationBusy:false,showUzumProducts:false,uzumNetwork:null,migrationBusy:false,migrationStatus:'',firebaseSetupRequired:false,firebaseSetupMessage:'' };
 const paths={dashboard:'Bosh sahifa',products:'Mahsulotlar',ai:'AI Studio',integrations:'Integratsiyalar',settings:'Sozlamalar'};
 const icons={
   grid:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
@@ -106,6 +106,23 @@ async function loadUzumProducts(){
   const data=await api('/api/integrations/uzum/products');
   state.uzumProducts=data.snapshots||[];
 }
+function firebaseSetupPanel(){
+  return `<section class="panel firebase-setup-panel">
+    <div class="panel-head"><div><h2>Firebase Firestore'ni ulash</h2><p class="panel-sub">Firebase xizmat kalitini JSON fayldan bir marta yuklang. ENV kiritish shart emas.</p></div>${ico('lock',20)}</div>
+    <div class="panel-body">
+      <p class="muted migration-explainer">Firebase Project settings → Service accounts → Generate new private key bo‘limidan kalitni oling. U serverda shifrlanadi.</p>
+      <form id="firebase-setup-form" class="migration-form" autocomplete="off">
+        <div class="form-group"><label for="firebase-file">Firebase JSON kaliti</label><input id="firebase-file" class="field" name="file" type="file" accept=".json,application/json" required></div>
+        <div class="form-group"><label for="firebase-admin-confirm">Administrator paroli</label><input id="firebase-admin-confirm" class="field" name="adminPassword" type="password" minlength="12" maxlength="512" autocomplete="current-password" required></div>
+        <button type="submit" class="btn btn-primary" id="firebase-setup-submit">${ico('lock',16)} Firebase'ga ulash</button>
+      </form>
+      <p id="firebase-setup-status" class="migration-result" role="status" aria-live="polite">${esc(state.firebaseSetupMessage||'JSON kalitni GitHub yoki chatga yubormang.')}</p>
+    </div>
+  </section>`;
+}
+function firebaseSetupView(){
+  return `<div class="login-page"><section class="login-visual"><div class="eyebrow">SELLERAI</div><h1>Ma’lumotlar bazasini <span>ulang</span></h1><p>Firebase kalitini bir marta yuklang va mahsulotlarni boshqarishni boshlang.</p></section><main class="login-main"><div class="firebase-setup-content">${firebaseSetupPanel()}<button class="btn" data-action="logout">${ico('logout',15)} Hisobdan chiqish</button></div></main></div>`;
+}
 function settings(){
   return `
   ${title('Sozlamalar','Xavfsizlik, xizmatlar va mavjud ma’lumotlarni ko‘chirish.')}
@@ -129,6 +146,7 @@ function settings(){
       </div>
     </section>
   </div>
+  ${firebaseSetupPanel()}
   <section class="panel migration-panel">
     <div class="panel-head"><div><h2>Eski ma’lumotlarni ko‘chirish</h2><p class="panel-sub">Cloudflare'dagi mahsulotlar, rasmlar, variantlar va harakatlar tarixini saqlab o‘tkazing.</p></div>${ico('download',20)}</div>
     <div class="panel-body">
