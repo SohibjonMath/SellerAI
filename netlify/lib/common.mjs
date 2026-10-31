@@ -60,8 +60,24 @@ export function cleanProduct(product){
   if(!title||!sku||!/^[A-Za-z0-9._-]+$/.test(sku))
     throw Object.assign(Error('Nom va SKU majburiy. SKU faqat harf, son, nuqta va chiziqdan iborat bo‘lsin'),{status:400});
   const variants=Array.isArray(product.variants)?product.variants.slice(0,25)
-    .map(v=>({name:safeString(v?.name,50),value:safeString(v?.value,100)}))
-    .filter(v=>v.name&&v.value):[];
+    .map(v=>{
+      const base={name:safeString(v?.name,50),value:safeString(v?.value,100)};
+      if(!base.name||!base.value)return null;
+      if(!v.sku)return base; // Historic descriptive variants remain compatible.
+      const sku=safeString(v.sku,70);
+      if(!/^[A-Za-z0-9._-]+$/.test(sku))throw Object.assign(Error('Variant SKU notoğri'),{status:400});
+      const image_key=safeString(v.image_key,120);
+      if(image_key&&!/^[0-9a-f-]+\.(jpg|png|webp)$/.test(image_key))
+        throw Object.assign(Error('Variant rasm kaliti notoğri'),{status:400});
+      const image_url=safeString(v.image_url,1500);
+      if(image_url&&!/^https:\/\/[^\s]+$/i.test(image_url))
+        throw Object.assign(Error('Variant rasm havolasi notoğri'),{status:400});
+      return {...base,sku,cost:numeric(v.cost??0,'Variant tannarxi'),
+        profit:numeric(v.profit??0,'Variant sof foyda'),
+        price:numeric(v.price??0,'Variant narxi'),
+        stock:numeric(v.stock??0,'Variant qoldig‘i',99999999),image_key,image_url,
+        price_auto:Boolean(v.price_auto)};
+    }).filter(Boolean):[];
   const image_url=safeString(product.image_url,1500);
   if(image_url&&!/^https:\/\/[^\s]+$/i.test(image_url))
     throw Object.assign(Error('Rasm manzili https:// bilan boshlanishi kerak'),{status:400});
@@ -72,6 +88,7 @@ export function cleanProduct(product){
     price:numeric(product.price??0,'Narx'),cost:numeric(product.cost??0,'Tannarx'),
     stock:numeric(product.stock??0,'Qoldiq',99999999),
     status:product.status==='ready'?'ready':'draft',
+    target_profit:numeric(product.target_profit??0,'Sof foyda'),
     image_key,image_url,variants_json:JSON.stringify(variants)};
 }
 export function safeError(error){
