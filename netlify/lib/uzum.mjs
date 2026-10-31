@@ -1,5 +1,5 @@
 import { randomBytes,randomUUID,pbkdf2Sync,createCipheriv,createDecipheriv } from 'node:crypto';
-import { json,fail,dbQuery,bodyJson } from './common.mjs';
+import { json,fail,bodyJson } from './common.mjs';
 const PROVIDER='uzum';
 const BASE='https://api-seller.uzum.uz/api/seller-openapi';
 const str=(v,max=160)=>String(v??'').trim().slice(0,max);
@@ -73,23 +73,55 @@ async function uzumGet(token,path,timeout=11000){
   }
 }
 async function getConnection(db){
-  return (await dbQuery(db,'SELECT provider,token_cipher,shops_json,status,checked_at,last_sync_at FROM marketplace_connections WHERE provider=$1',[PROVIDER]))[0];
+  const snap=await db.collection('marketplace_connections').doc(PROVIDER).get();
+  return snap.exists?snap.data():null;
 }
 function asShops(v){try{return JSON.parse(v||'[]')}catch{return []}}
+const shopRef=(db,id)=>db.collection('marketplace_snapshots').doc(String(id));
 async function snapshots(db,includeProducts=false){
-  const rows=await dbQuery(db,'SELECT shop_id,products_json,product_count,fetched_at FROM marketplace_snapshots WHERE provider=$1 ORDER BY shop_id',[PROVIDER]);
-  return rows.map(r=>includeProducts?{shop_id:r.shop_id,products:JSON.parse(r.products_json||'[]'),product_count:r.product_count,fetched_at:r.fetched_at}:
-    {shop_id:r.shop_id,product_count:r.product_count,fetched_at:r.fetched_at});
+  const metadata=await db.collection('marketplace_snapshots').orderBy('shop_id').limit(50).get();
+  const result=[];
+  for(const doc of metadata.docs){
+    const d=doc.data();
+    const entry={shop_id:d.shop_id,product_count:d.product_count,fetched_at:d.fetched_at};
+    if(includeProducts){
+      const parts=await doc.ref.collection('parts').orderBy('index').get();
+      entry.products=parts.docs.flatMap(p=>p.data().products||[]);
+    }
+    result.push(entry);
+  }
+  return result;
+}
+async function storeSnapshot(db,shopId,products){
+  const ref=shopRef(db,shopId);
+  const previous=await ref.collection('parts').get();
+  // Documents stay well below Firestore's 1-MiB document limit.
+  const chunks=[];
+  let current=[],bytes=0;
+  for(const product of products){
+    const size=Buffer.byteLength(JSON.stringify(product),'utf8');
+    if(current.length>=80||bytes+size>120000){
+      chunks.push(current);current=[];bytes=0;
+    }
+    current.push(product);bytes+=size;
+  }
+  if(current.length)chunks.push(current);
+  if(chunks.length>350)throw Error('Bu do‘konda yuklash hajmi chegaradan oshdi');
+  const batch=db.batch();
+  for(const doc of previous.docs)batch.delete(doc.ref);
+  chunks.forEach((p,i)=>batch.set(ref.collection('parts').doc(String(i).padStart(5,'0')),{index:i,products:p}));
+  batch.set(ref,{shop_id:String(shopId),product_count:products.length,fetched_at:new Date().toISOString()});
+  await batch.commit();
 }
 async function fetchProducts(token,shop){
-  const result=[];let total=null,fetched=0,complete=false;
+  const products=[];let total=null,fetched=0,complete=false;
   for(let page=0;page<3;page++){
     const batch=extractProducts(await uzumGet(token,'/v1/product/shop/'+encodeURIComponent(shop)+'?page='+page+'&size=100'));
-    result.push(...batch.products);fetched+=batch.cards;
+    products.push(...batch.products);fetched+=batch.cards;
     if(batch.total!==null)total=batch.total;
     if(batch.cards<100||(total!==null&&fetched>=total)){complete=true;break}
   }
-  return {products:result,partial:!complete};
+  return {products,partial:!complete};
 }
 export async function handleUzum(req,db,secret,path,method){
   if(!path.startsWith('/api/integrations/uzum'))return null;
@@ -117,16 +149,15 @@ export async function handleUzum(req,db,secret,path,method){
     if(token.length<16||/[\r\n]/.test(token))return fail('Uzum API kalitini to‘g‘ri kiriting');
     const shops=shopsFrom(await uzumGet(token,'/v1/shops'));
     if(!shops.length)return fail('Bu API kalitga biriktirilgan do‘kon topilmadi',403);
-    await dbQuery(db,'INSERT INTO marketplace_connections (provider,token_cipher,shops_json,status,checked_at) '+
-      'VALUES ($1,$2,$3,$4,NOW()) ON CONFLICT(provider) DO UPDATE SET token_cipher=EXCLUDED.token_cipher,'+
-      'shops_json=EXCLUDED.shops_json,status=EXCLUDED.status,checked_at=NOW(),last_sync_at=NULL,updated_at=NOW()',
-      [PROVIDER,encrypt(token,secret),JSON.stringify(shops),'connected']);
-    await dbQuery(db,'DELETE FROM marketplace_snapshots WHERE provider=$1',[PROVIDER]);
+    const ref=db.collection('marketplace_connections').doc(PROVIDER);
+    await ref.set({provider:PROVIDER,token_cipher:encrypt(token,secret),shops_json:JSON.stringify(shops),
+      status:'connected',checked_at:new Date().toISOString(),last_sync_at:null,updated_at:new Date().toISOString()});
+    await clearSnapshots(db);
     return json({connected:true,shops});
   }
   if(path==='/api/integrations/uzum'&&method==='DELETE'){
-    await dbQuery(db,'DELETE FROM marketplace_snapshots WHERE provider=$1',[PROVIDER]);
-    await dbQuery(db,'DELETE FROM marketplace_connections WHERE provider=$1',[PROVIDER]);
+    await clearSnapshots(db);
+    await db.collection('marketplace_connections').doc(PROVIDER).delete();
     return json({connected:false});
   }
   if((path==='/api/integrations/uzum/check'||path==='/api/integrations/uzum/sync')&&method==='POST'){
@@ -136,22 +167,29 @@ export async function handleUzum(req,db,secret,path,method){
     try{token=decrypt(row.token_cipher,secret)}
     catch{return fail('Saqlangan API kalitni o‘qib bo‘lmadi. Qayta ulang',409)}
     const shops=shopsFrom(await uzumGet(token,'/v1/shops'));
-    await dbQuery(db,'UPDATE marketplace_connections SET shops_json=$1,status=$2,checked_at=NOW(),updated_at=NOW() WHERE provider=$3',
-      [JSON.stringify(shops),'connected',PROVIDER]);
+    const ref=db.collection('marketplace_connections').doc(PROVIDER);
+    await ref.update({shops_json:JSON.stringify(shops),status:'connected',checked_at:new Date().toISOString(),
+      updated_at:new Date().toISOString()});
     if(path.endsWith('/check'))return json({connected:true,shops});
     const results=await Promise.all(shops.slice(0,4).map(async shop=>{
       try{
-        const data=await fetchProducts(token,shop.id);
-        await dbQuery(db,'INSERT INTO marketplace_snapshots (provider,shop_id,products_json,product_count,fetched_at) '+
-          'VALUES ($1,$2,$3,$4,NOW()) ON CONFLICT(provider,shop_id) DO UPDATE SET products_json=EXCLUDED.products_json,'+
-          'product_count=EXCLUDED.product_count,fetched_at=NOW()',
-          [PROVIDER,shop.id,JSON.stringify(data.products),data.products.length]);
-        return {shop_id:shop.id,count:data.products.length,partial:data.partial};
-      }catch(err){return {shop_id:shop.id,error:'Mahsulotlarni yuklab bo‘lmadi'}}
+        const result=await fetchProducts(token,shop.id);
+        await storeSnapshot(db,shop.id,result.products);
+        return {shop_id:shop.id,count:result.products.length,partial:result.partial};
+      }catch(e){return {shop_id:shop.id,error:'Mahsulotlarni yuklab bo‘lmadi'}}
     }));
-    if(results.some(r=>!r.error))
-      await dbQuery(db,'UPDATE marketplace_connections SET last_sync_at=NOW() WHERE provider=$1',[PROVIDER]);
+    if(results.some(r=>!r.error))await ref.update({last_sync_at:new Date().toISOString()});
     return json({connected:true,shops,results});
   }
   return fail('Bunday xizmat mavjud emas',404);
+}
+async function clearSnapshots(db){
+  const all=await db.collection('marketplace_snapshots').limit(100).get();
+  for(const doc of all.docs){
+    const parts=await doc.ref.collection('parts').get();
+    const batch=db.batch();
+    for(const part of parts.docs)batch.delete(part.ref);
+    batch.delete(doc.ref);
+    await batch.commit();
+  }
 }
