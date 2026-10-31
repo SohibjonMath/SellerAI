@@ -30,7 +30,7 @@ export function getDb() {
 
 export function skuRef(db, sku) {
   const id = createHash('sha256').update(sku).digest('hex');
-  return db.collection('sku_index').doc(id);
+  return db.collection('sellerai_sku_index').doc(id);
 }
 export function documentToObject(doc) {
   return doc.exists ? { ...doc.data(), id: doc.id } : null;
@@ -39,7 +39,7 @@ export function apiConflict(message) {
   return Object.assign(new Error(message), { status: 409 });
 }
 export async function saveProduct(db, product, id, isUpdate = false, originalDates = null) {
-  const ref = db.collection('products').doc(id);
+  const ref = db.collection('sellerai_products').doc(id);
   const newSku = skuRef(db, product.sku);
   return db.runTransaction(async tx => {
     const current = await tx.get(ref);
@@ -61,7 +61,7 @@ export async function saveProduct(db, product, id, isUpdate = false, originalDat
   });
 }
 export async function deleteProduct(db, id) {
-  const ref = db.collection('products').doc(id);
+  const ref = db.collection('sellerai_products').doc(id);
   return db.runTransaction(async tx => {
     const snapshot = await tx.get(ref);
     if (!snapshot.exists) return null;
@@ -72,7 +72,7 @@ export async function deleteProduct(db, id) {
   });
 }
 export async function addActivity(db, productId, action, detail) {
-  const ref = db.collection('activity').doc();
+  const ref = db.collection('sellerai_activity').doc();
   await ref.create({ id: ref.id, product_id: productId, action, detail, created_at: new Date().toISOString() });
 }
 export function productToUI(data) {
