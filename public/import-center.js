@@ -146,6 +146,7 @@ async function createOneImport(input,file){
  if(file){
   const data=new FormData();
   data.append('photo',await prepareImportPhoto(file));
+  if(input && !/^https?:\/\//i.test(input))data.append('hint',input.slice(0,180));
   const result=await api('/api/imports/photo',{method:'POST',body:data});
   state.importActive=result.item.id;
   return result.item;
@@ -232,9 +233,9 @@ document.addEventListener('submit',async event=>{
   }
   state.importBusy=true;
   try{
-   await api('/api/imports/'+id+'/save',{method:'POST',body:JSON.stringify(values)});
+   const saved=await api('/api/imports/'+id+'/save',{method:'POST',body:JSON.stringify(values)});
    await loadImports(true);
-   state.importStatus='Mahsulot saqlandi. Uzum katalogi o‘zgarmadi.';
+   state.importStatus=saved.priceAutoCalculated?'Mahsulot saqlandi. Narxi: '+sum(saved.product.price)+'. Uzum o‘zgarmadi.':'Mahsulot saqlandi. Uzum katalogi o‘zgarmadi.';
    toast('Mahsulot katalogga saqlandi');
    const products=await api('/api/products');state.products=products.products;
   }catch(e){state.importStatus=e.message;toast(e.message,true)}
