@@ -1,4 +1,4 @@
-import { getDatabase } from '@netlify/database';
+import { getDatabase } from '../lib/db.mjs';
 import { getStore } from '@netlify/blobs';
 import OpenAI from 'openai';
 import { json,fail,dbQuery,uuid,adminSecret,makeCookie,authenticated,comparePassword,hmacIp,
