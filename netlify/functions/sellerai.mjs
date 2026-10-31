@@ -11,6 +11,16 @@ const store=()=>getStore({name:'sellerai-images',consistency:'strong'});
 const MAX_IMAGE=5000000;
 const loginStore=()=>getStore({name:'sellerai-auth-attempts',consistency:'strong'});
 
+async function firebaseReady(){
+  const state=await firebaseCredentialStatus();
+  if(!state.configured)return false;
+  try{
+    await (await getDb()).collection('sellerai_products').limit(1).get();
+    return true;
+  }catch{return false}
+}
+
+
 async function api(req,context){
   const url=new URL(req.url),path=url.pathname,method=req.method;
   if(path==='/api/health'&&method==='GET'){
@@ -41,13 +51,11 @@ async function api(req,context){
       return fail('Parol noto‘g‘ri',401);
     }
     await store.delete(key);
-    const firebase=await firebaseCredentialStatus();
-    return json({ok:true,firebase_configured:firebase.configured},200,{'Set-Cookie':makeCookie(secret)});
+    return json({ok:true,firebase_configured:await firebaseReady()},200,{'Set-Cookie':makeCookie(secret)});
   }
   if(!authenticated(req,secret))return fail('Avval tizimga kiring',401);
   if(path==='/api/me'&&method==='GET'){
-    const state=await firebaseCredentialStatus();
-    return json({authenticated:true,product:'SellerAI',firebase_configured:state.configured});
+    return json({authenticated:true,product:'SellerAI',firebase_configured:await firebaseReady()});
   }
   if(path==='/api/logout'&&method==='POST')
     return json({ok:true},200,{'Set-Cookie':'sellerai_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict'});
@@ -55,6 +63,8 @@ async function api(req,context){
     return json(await firebaseCredentialStatus());
   }
   if(path==='/api/setup/firebase'&&method==='POST') {
+    if(context?.deploy?.context && context.deploy.context!=='production')
+      return fail('Firebase kalitini faqat asosiy sayt orqali sozlash mumkin',403);
     if(Number(req.headers.get('content-length')||0)>35000)return fail('Fayl hajmi chegaradan oshdi',413);
     const data=await req.formData();
     const confirm=String(data.get('adminPassword')||'');
