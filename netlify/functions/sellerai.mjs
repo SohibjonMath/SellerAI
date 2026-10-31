@@ -1,5 +1,6 @@
 import { getDb, saveProduct, deleteProduct, addActivity, productToUI, documentToObject } from '../lib/firebase.mjs';
 import { getStore } from '@netlify/blobs';
+import { firebaseCredentialStatus, saveFirebaseAccount } from '../lib/firebase-credentials.mjs';
 import OpenAI from 'openai';
 import { json,fail,uuid,adminSecret,makeCookie,authenticated,comparePassword,hmacIp,
   assertOrigin,bodyJson,cleanProduct,safeError } from '../lib/common.mjs';
@@ -8,14 +9,17 @@ import { handleMigration } from '../lib/migration.mjs';
 
 const store=()=>getStore({name:'sellerai-images',consistency:'strong'});
 const MAX_IMAGE=5000000;
+const loginStore=()=>getStore({name:'sellerai-auth-attempts',consistency:'strong'});
 
 async function api(req,context){
   const url=new URL(req.url),path=url.pathname,method=req.method;
   if(path==='/api/health'&&method==='GET'){
-    if(!process.env.ADMIN_PASSWORD||!process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+    if(!process.env.ADMIN_PASSWORD)
       return json({status:'needs_setup',platform:'Netlify',database:'Firebase Firestore'},503);
     try{
-      await getDb().collection('sellerai_products').limit(1).get();
+      const state=await firebaseCredentialStatus();
+      if(!state.configured)return json({status:'needs_firebase',platform:'Netlify',database:'Firebase Firestore'},503);
+      await (await getDb()).collection('sellerai_products').limit(1).get();
       return json({status:'ok',platform:'Netlify',database:'Firebase Firestore'});
     }catch{
       return json({status:'database_unavailable',platform:'Netlify',database:'Firebase Firestore'},503);
@@ -23,30 +27,51 @@ async function api(req,context){
   }
   if(!path.startsWith('/api/'))return fail('Xizmat topilmadi',404);
   assertOrigin(req);
-  const secret=adminSecret(),db=getDb();
+  const secret=adminSecret();
   if(path==='/api/login'&&method==='POST'){
-    const hash=hmacIp(context?.ip||'unknown',secret),now=Math.floor(Date.now()/1000);
-    const loginRef=db.collection('sellerai_login_attempts').doc(hash);
-    const previous=(await loginRef.get()).data();
-    if(previous&&now-Number(previous.window_start)<900&&previous.failed_count>=8)
+    const key=hmacIp(context?.ip||'unknown',secret),now=Math.floor(Date.now()/1000);
+    const store=loginStore(),prior=await store.get(key,{type:'json'});
+    if(prior&&now-Number(prior.window_start)<900&&prior.failed_count>=8)
       return fail('Kirish urinishlari ko‘paydi. 15 daqiqadan keyin urinib ko‘ring',429);
     const body=await bodyJson(req,1000);
     if(typeof body.password!=='string'||body.password.length>512||!comparePassword(body.password,secret)){
-      await db.runTransaction(async tx=>{
-        const snap=await tx.get(loginRef),prior=snap.data();
-        const active=prior&&now-Number(prior.window_start)<900;
-        tx.set(loginRef,{failed_count:active?Math.min(100,Number(prior.failed_count)+1):1,
-          window_start:active?prior.window_start:now});
-      });
+      const active=prior&&now-Number(prior.window_start)<900;
+      await store.setJSON(key,{failed_count:active?Math.min(100,Number(prior.failed_count)+1):1,
+        window_start:active?prior.window_start:now});
       return fail('Parol noto‘g‘ri',401);
     }
-    await loginRef.delete();
-    return json({ok:true},200,{'Set-Cookie':makeCookie(secret)});
+    await store.delete(key);
+    const firebase=await firebaseCredentialStatus();
+    return json({ok:true,firebase_configured:firebase.configured},200,{'Set-Cookie':makeCookie(secret)});
   }
   if(!authenticated(req,secret))return fail('Avval tizimga kiring',401);
-  if(path==='/api/me'&&method==='GET')return json({authenticated:true,product:'SellerAI'});
+  if(path==='/api/me'&&method==='GET'){
+    const state=await firebaseCredentialStatus();
+    return json({authenticated:true,product:'SellerAI',firebase_configured:state.configured});
+  }
   if(path==='/api/logout'&&method==='POST')
     return json({ok:true},200,{'Set-Cookie':'sellerai_session=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=Strict'});
+  if(path==='/api/setup/firebase'&&method==='GET') {
+    return json(await firebaseCredentialStatus());
+  }
+  if(path==='/api/setup/firebase'&&method==='POST') {
+    if(Number(req.headers.get('content-length')||0)>35000)return fail('Fayl hajmi chegaradan oshdi',413);
+    const data=await req.formData();
+    const confirm=String(data.get('adminPassword')||'');
+    if(!comparePassword(confirm,secret))return fail('Administrator paroli noto‘g‘ri',403);
+    const file=data.get('file');
+    if(!(file instanceof File)||file.size>16000||file.size<150)
+      return fail('Firebase JSON faylini tanlang (16 KB gacha)',400);
+    const result=await saveFirebaseAccount(await file.text(),secret);
+    try {
+      await (await getDb()).collection('sellerai_products').limit(1).get();
+      return json({saved:true,verified:true,project_id:result.project_id});
+    } catch {
+      return json({saved:true,verified:false,project_id:result.project_id,
+        error:'Kalit saqlandi, lekin Firestore bilan aloqa tasdiqlanmadi. Firestore Database yoqilganini tekshiring'});
+    }
+  }
+  const db=await getDb();
   const market=await handleUzum(req,db,secret,path,method);
   if(market)return market;
   const migration=await handleMigration(req,db,path,method);
