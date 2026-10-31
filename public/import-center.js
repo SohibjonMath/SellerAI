@@ -180,9 +180,11 @@ function importCenterView(){
 }
 async function loadImports(quiet=false){
  try{
-  const data=await api('/api/imports');
+  const [data,settings]=await Promise.all([api('/api/imports'),api('/api/pricing/settings')]);
   state.imports=data.items||[];
-  if(state.page==='imports'&&!quiet)render();
+  state.importDefaultProfit=Number(settings.settings?.profit||0);
+  state.importTariffsConfirmed=settings.settings?.confirmed===true;
+  if(state.page==='imports'&&!quiet){render();if(importDraft()&&!importDraft().product_id)updateOnePricePreview()}
  }catch(e){if(!quiet)toast(e.message,true)}
 }
 async function createOneImport(input,file){
@@ -224,6 +226,16 @@ async function importCenterAction(action,node){
  if(action==='import-open'){state.page='imports';render();await loadImports();return}
  if(action==='import-start-new'){state.importActive=null;state.importInput='';state.importStatus='';render();return}
  if(action==='import-select-draft'){state.importActive=node.dataset.id;state.importStatus='';render();return}
+ if(action==='import-add-variant'){
+  const container=document.getElementById('one-variant-list');
+  if(container&&container.children.length<25)container.insertAdjacentHTML('beforeend',importVariantRow({},container.children.length));
+  else toast('Bir mahsulotga eng ko‘pi 25 ta variant',true);
+  return;
+ }
+ if(action==='import-remove-variant'){
+  node.closest('.one-variant-row')?.remove();
+  updateOnePricePreview();return;
+ }
  if(action==='import-analyze'){
   if(state.importBusy)return;
   state.importBusy=true;
@@ -236,7 +248,48 @@ async function importCenterAction(action,node){
   finally{state.importBusy=false;render()}return;
  }
 }
+function collectOneVariants(){
+ const form=document.getElementById('one-product-form');if(!form)return [];
+ return [...form.querySelectorAll('.one-variant-row')].map(row=>({
+  name:row.querySelector('[name=variant-kind]')?.value||'Rang',
+  value:row.querySelector('[name=variant-value]')?.value.trim()||'',
+  sku:row.querySelector('[name=variant-sku]')?.value.trim()||'',
+  cost:row.querySelector('[name=variant-cost]')?.value||'',
+  profit:row.querySelector('[name=variant-profit]')?.value||'',
+  stock:row.querySelector('[name=variant-stock]')?.value||'0',
+  image_key:row.querySelector('[name=variant-image-key]')?.value||'',
+  image_url:row.querySelector('[name=variant-image-url]')?.value||''
+ }));
+}
+let onePriceRequest=0;
+async function updateOnePricePreview(){
+ const form=document.getElementById('one-product-form');
+ const target=document.getElementById('one-product-price-result');
+ if(!form||!target)return;
+ const cost=Number(form.querySelector('[name=cost]')?.value||0);
+ const profit=Number(form.querySelector('[name=profit]')?.value||0);
+ const variants=collectOneVariants().filter(v=>v.value);
+ if(cost<=0||profit<=0){
+  target.textContent='Narx hisoblash uçun tannarx va kerakli sof foydani kiriting.';
+  return;
+ }
+ const seq=++onePriceRequest;
+ target.textContent='Narx hisoblanmoqda...';
+ try{
+  const answer=await api('/api/imports/'+form.dataset.id+'/preview',{
+   method:'POST',body:JSON.stringify({cost,profit,variants})
+  });
+  if(seq!==onePriceRequest||!target.isConnected)return;
+  target.textContent=answer.configured?
+   'Tavsiya qilingan narx: '+sum(answer.price)+' · Sof foyda: '+sum(answer.netProfit)+
+   (answer.variants.length?' · Variantlar: '+answer.variants.map(v=>v.value+' '+(v.price?sum(v.price):'narx yo‘q')).join(' / '):''):
+   'Tariflar tasdiqlanmagan: narx taxmin qilinmaydi. Mahsulotni qoralama sifatida saqlash mumkin.';
+ }catch(e){if(seq===onePriceRequest&&target.isConnected)target.textContent=e.message}
+}
 document.addEventListener('change',event=>{
+ if(event.target.closest('#one-product-form')&&event.target.matches('input,select')){
+  if(event.target.type!=='file')updateOnePricePreview();
+ }
  if(event.target.id==='one-product-file'){
   const file=event.target.files?.[0],note=document.getElementById('one-product-file-label');
   if(note)note.textContent=file?'Tanlangan surat: '+file.name:'1 ta havola, nom yoki surat yetarli.';
@@ -270,19 +323,43 @@ document.addEventListener('submit',async event=>{
   const corrected=String(fields.get('corrected_title')||'').trim();
   const title=corrected||String(fields.get('title')||'').trim();
   if(!title){toast('Faqat mahsulot nomini kiriting',true);return}
-  const values={title};
-  for(const key of ['sku','category','notes','description','price','cost','stock']){
+  const values={title,variants:collectOneVariants()};
+  for(const key of ['sku','category','notes','description','price','cost','stock','profit']){
    if(fields.has(key))values[key]=String(fields.get(key)||'').trim();
   }
+  if(values.variants.some(v=>!v.value)){
+   toast('Har bir variantning rang, hajm yoki ölc̆hamini kiriting',true);return;
+  }
+  if(values.variants.length){
+   values.stock=String(values.variants.reduce((n,v)=>n+Number(v.stock||0),0));
+  }
   state.importBusy=true;
+  let success=false;
+  const uploaded=[];
   try{
+   const rows=[...event.target.querySelectorAll('.one-variant-row')];
+   for(let i=0;i<rows.length;i++){
+    const file=rows[i].querySelector('[name=variant-photo]')?.files?.[0];
+    if(!file)continue;
+    const data=new FormData();data.append('file',file);
+    const stored=await api('/api/media',{method:'POST',body:data});
+    uploaded.push(stored.key);values.variants[i].image_key=stored.key;
+    values.variants[i].image_url='';
+   }
    const saved=await api('/api/imports/'+id+'/save',{method:'POST',body:JSON.stringify(values)});
-   await loadImports(true);
-   state.importStatus=saved.priceAutoCalculated?'Mahsulot saqlandi. Narxi: '+sum(saved.product.price)+'. Uzum o‘zgarmadi.':'Mahsulot saqlandi. Uzum katalogi o‘zgarmadi.';
+   success=true;await loadImports(true);
+   const variantCount=saved.product.variants?.length||0;
+   state.importStatus='Mahsulot saqlandi. '+
+    (variantCount?variantCount+' ta variantning alohida SKU va narxi saqlandi. ': '')+
+    (saved.priceAutoCalculated?'Narx: '+sum(saved.product.price)+'. ':'')+
+    'Uzum özgarmadi.';
    toast('Mahsulot katalogga saqlandi');
-   const products=await api('/api/products');state.products=products.products;
-  }catch(e){state.importStatus=e.message;toast(e.message,true)}
-  finally{state.importBusy=false;render()}
+   state.products=(await api('/api/products')).products;
+  }catch(e){
+   state.importStatus=e.message;toast(e.message,true);
+   for(const key of uploaded)await api('/api/media/'+encodeURIComponent(key),{method:'DELETE'}).catch(()=>{});
+   const msg=document.getElementById('import-feedback');if(msg)msg.textContent=e.message;
+  }finally{state.importBusy=false;if(success)render()}
   return;
  }
  if(event.target.id==='import-batch-form'){
