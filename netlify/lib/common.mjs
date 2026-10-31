@@ -2,13 +2,11 @@ import { createHmac, createHash, timingSafeEqual, randomUUID } from 'node:crypto
 
 export const SESSION_COOKIE='sellerai_session';
 export const SESSION_SECONDS=10*60*60;
-export const PRODUCT_COLS='id,sku,title,category,description,price,cost,stock,status,image_key,image_url,variants_json,created_at,updated_at';
 export const safeString=(v,max=500)=>String(v??'').trim().slice(0,max);
 export const json=(value,status=200,headers={})=>Response.json(value,{status,headers:{
   'Cache-Control':'no-store','X-Content-Type-Options':'nosniff',...headers
 }});
 export const fail=(error,status=400)=>json({error},status);
-export const dbQuery=(db,query,values=[])=>db.sql.unsafe(query,values);
 export const uuid=()=>randomUUID();
 
 export function adminSecret(){
@@ -76,24 +74,15 @@ export function cleanProduct(product){
     status:product.status==='ready'?'ready':'draft',
     image_key,image_url,variants_json:JSON.stringify(variants)};
 }
-export function mapProduct(p){
-  if(!p)return null;
-  let variants=[];try{variants=JSON.parse(p.variants_json||'[]')}catch{}
-  const {variants_json,...rest}=p;
-  for(const key of ['price','cost','stock'])rest[key]=Number(rest[key]??0);
-  for(const key of ['created_at','updated_at'])if(rest[key] instanceof Date)rest[key]=rest[key].toISOString();
-  return {...rest,variants};
-}
-export async function record(db,id,action,detail){
-  await dbQuery(db,'INSERT INTO activity (id,product_id,action,detail) VALUES ($1,$2,$3,$4)',
-    [uuid(),id,action,detail]);
-}
 export function safeError(error){
-  if(error?.code==='23505')return fail('Bu SKU bilan mahsulot allaqachon bor',409);
-  const st=error?.status;
-  if(st&&st>=400&&st<500)return fail(error.message,st);
+  if(error?.status===503)return fail(String(error.message||'Xizmat sozlanmagan'),503);
+  if(error?.status>=400 && error?.status<500)return fail(error.message,error.status);
   if(error?.message?.startsWith('ADMIN_PASSWORD'))return fail(error.message,503);
-  if(/DATABASE_URL|Neon PostgreSQL|database is not available|connection string/i.test(error?.message||''))return fail('Neon PostgreSQL ulanmagan. Netlify Environment variables bo‘limida DATABASE_URL sozlang',503);
+  if(/FIREBASE_SERVICE_ACCOUNT_JSON|Firebase xizmat kaliti|Firebase ulanmagan/i.test(error?.message||''))
+    return fail('Firebase Firestore ulanmagan. Netlify Environment variables bo‘limida FIREBASE_SERVICE_ACCOUNT_JSON Secret sozlang',503);
+  if(error?.code===6||error?.code==='already-exists')return fail('Ma’lumot allaqachon mavjud',409);
+  if(error?.code===7||error?.code==='permission-denied')
+    return fail('Firebase hisobining Firestore uchun ruxsatlarini tekshiring',503);
   console.error('SellerAI API error:',error?.code||error?.name||'internal');
   return fail('Serverda xatolik yuz berdi',500);
 }
