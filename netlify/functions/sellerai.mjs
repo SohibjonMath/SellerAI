@@ -6,6 +6,7 @@ import { json,fail,uuid,adminSecret,makeCookie,authenticated,comparePassword,hma
 import { handleUzum } from '../lib/uzum.mjs';
 import { handleMigration } from '../lib/migration.mjs';
 import { handleImports } from '../lib/imports.mjs';
+import { calculatePrice, validatePricing, DEFAULT_PRICING } from '../lib/pricing.mjs';
 
 const store=()=>getStore({name:'sellerai-images',consistency:'strong'});
 const MAX_IMAGE=5000000;
@@ -53,6 +54,25 @@ async function api(req,context){
   if(migration)return migration;
   const imported=await handleImports(req,db,path,method);
   if(imported)return imported;
+  if(path==='/api/pricing/settings'&&method==='GET'){
+    const snapshot=await db.collection('sellerai_settings').doc('pricing').get();
+    return json({settings:snapshot.exists?{...DEFAULT_PRICING,...snapshot.data()}:DEFAULT_PRICING});
+  }
+  if(path==='/api/pricing/settings'&&method==='PATCH'){
+    const values=await bodyJson(req,5000);
+    const validated=validatePricing(values);
+    const settings={...DEFAULT_PRICING};
+    for(const key of ['commission','payment','advertising','tax','returns'])
+      settings[key]=validated[key]/100;
+    for(const key of ['inbound','packaging','fulfillment','other','profit','step'])
+      settings[key]=validated[key];
+    await db.collection('sellerai_settings').doc('pricing').set(settings);
+    return json({settings});
+  }
+  if(path==='/api/pricing/quote'&&method==='POST'){
+    return json({quote:calculatePrice(await bodyJson(req,5000))});
+  }
+
   if(path==='/api/stats'&&method==='GET'){
     const [allProducts,history]=await Promise.all([
       db.collection('sellerai_products').select('stock','price','cost','status').get(),
