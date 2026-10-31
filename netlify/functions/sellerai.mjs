@@ -5,6 +5,7 @@ import { json,fail,uuid,adminSecret,makeCookie,authenticated,comparePassword,hma
   assertOrigin,bodyJson,cleanProduct,safeError } from '../lib/common.mjs';
 import { handleUzum } from '../lib/uzum.mjs';
 import { handleMigration } from '../lib/migration.mjs';
+import { handleImports } from '../lib/imports.mjs';
 
 const store=()=>getStore({name:'sellerai-images',consistency:'strong'});
 const MAX_IMAGE=5000000;
@@ -50,6 +51,8 @@ async function api(req,context){
   if(market)return market;
   const migration=await handleMigration(req,db,path,method);
   if(migration)return migration;
+  const imported=await handleImports(req,db,path,method);
+  if(imported)return imported;
   if(path==='/api/stats'&&method==='GET'){
     const [allProducts,history]=await Promise.all([
       db.collection('sellerai_products').select('stock','price','cost','status').get(),
