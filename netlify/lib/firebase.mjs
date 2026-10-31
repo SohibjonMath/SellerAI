@@ -1,22 +1,31 @@
-import { createHash } from 'node:crypto';
+import { createHash, createPrivateKey } from 'node:crypto';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { loadFirebaseAccount } from './firebase-credentials.mjs';
 
-let firestore=null;
-let activeApp='';
+let firestore = null;
+let activeApp = '';
+
 export async function getDb() {
-  const adminPassword=process.env.ADMIN_PASSWORD||'';
-  if(adminPassword.length<12)
-    throw Object.assign(Error('ADMIN_PASSWORD sozlanmagan (kamida 12 belgi)'),{status:503});
-  const account=await loadFirebaseAccount(adminPassword);
-  const fingerprint=createHash('sha256').update(account.project_id+'\n'+account.private_key_id).digest('hex').slice(0,20);
-  const appName='sellerai-'+fingerprint;
-  if(firestore&&activeApp===appName)return firestore;
-  let app=getApps().find(item=>item.name===appName);
-  if(!app)app=initializeApp({credential:cert(account),projectId:account.project_id},appName);
-  firestore=getFirestore(app);
-  activeApp=appName;
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
+  if (!raw) {
+    throw Object.assign(new Error('FIREBASE_SERVICE_ACCOUNT_JSON Secret sozlanmagan. Netlify Environment variables bo‘limida kiriting'), { status: 503 });
+  }
+  let account;
+  try { account = JSON.parse(raw); }
+  catch { throw Object.assign(new Error('Firebase Service Account JSON noto‘g‘ri formatda'), { status: 503 }); }
+  if (account?.type !== 'service_account' || !account.project_id ||
+      !account.client_email || !account.private_key) {
+    throw Object.assign(new Error('Firebase Service Account JSON maydonlari to‘liq emas'), { status: 503 });
+  }
+  try { createPrivateKey(account.private_key); }
+  catch { throw Object.assign(new Error('Firebase private_key PEM formati noto‘g‘ri'), { status: 503 }); }
+  const fingerprint = createHash('sha256').update(account.project_id + '\n' + account.private_key_id).digest('hex').slice(0,20);
+  const appName = 'sellerai-' + fingerprint;
+  if (firestore && activeApp === appName) return firestore;
+  let app = getApps().find(item => item.name === appName);
+  if (!app) app = initializeApp({ credential: cert(account), projectId: account.project_id },appName);
+  firestore = getFirestore(app);
+  activeApp = appName;
   return firestore;
 }
 
