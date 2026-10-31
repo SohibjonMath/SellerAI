@@ -90,14 +90,18 @@ async function enrich(item,meta){
   const prompt='Uzum Market uchun mahsulot matnini yarating. Faqat keltirilgan faktlarga tayangan holda yozing. '+
     'Material, brend, tarkib, olcham, kafolat yoki sertifikat haqida ma’lumot o‘ylab topmang. '+
     'O‘zbek (ö ğ ş ç) va rus tillarida yozing. Faqat JSON chiqaring: '+
-    '{"title":"...","category":"...","description":"...","description_ru":"...","keywords":["..."]}. '+
-    'Nomsiz xususiyatlarni kiritmang. Faktlar:\n'+facts;
+    '{"title":"...","category":"...","description":"...","description_ru":"...","keywords":["..."],"variants":[{"name":"Hajm","value":"250 ml"}]}. '+
+    'Variantlarni faqat manbada aniq aytilgan rang, hajm yoki ölc̆ham qiymatlaridan tuz. '+
+    'Boshqa variantlar bo‘lishi mumkin deb taxmin qilma. Faktlar:\n'+facts;
   const response=await new OpenAI().responses.create({model:'gpt-5-mini',input:prompt,max_output_tokens:1500});
   const found=String(response.output_text||'').match(/\{[\s\S]*\}/);if(!found)throw invalid('AI javobi notoğri',502);
   let data;try{data=JSON.parse(found[0])}catch{throw invalid('AI JSON javobi notoğri',502)}
   return {title:safeString(data.title,160),category:safeString(data.category,100),
     description:safeString(data.description,3000),description_ru:safeString(data.description_ru,3000),
-    keywords:Array.isArray(data.keywords)?data.keywords.slice(0,12).map(v=>safeString(v,50)).filter(Boolean):[]};
+    keywords:Array.isArray(data.keywords)?data.keywords.slice(0,12).map(v=>safeString(v,50)).filter(Boolean):[],
+    variants:Array.isArray(data.variants)?data.variants.slice(0,25).map(v=>({
+      name:safeString(v?.name,50),value:safeString(v?.value,100)
+    })).filter(v=>v.name&&v.value):[]};
 }
 async function getItem(db,id){
   if(!/^[a-f0-9]{64}$/.test(id))throw invalid('Import topilmadi',404);
@@ -209,7 +213,8 @@ export async function handleImports(req,db,path,method){
       Object.assign(data,{title:ai?.title||item.title||meta.title||'',
         description:ai?.description||item.description||meta.description||'',
         description_ru:ai?.description_ru||item.description_ru||'',
-        category:ai?.category||item.category||'',keywords:ai?.keywords||item.keywords||[]});
+        category:ai?.category||item.category||'',keywords:ai?.keywords||item.keywords||[],
+        variants:ai?.variants?.length?ai.variants:(item.variants||[])});
       data.status=data.title?'review':'needs_info';
       data.error=!data.title?'Sahifadan nom olinmadi. Nom va aniq ma’lumotlarni kiriting.':(!ai?'AI tayyor bo‘lmasa, ma’lumotni qo‘lda to‘ldiring.':'');
       data.quality=productQuality({...item,...data});
