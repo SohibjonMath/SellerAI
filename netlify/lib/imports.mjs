@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import OpenAI from 'openai';
+import { getStore } from '@netlify/blobs';
 import { json, fail, bodyJson, cleanProduct, safeString } from './common.mjs';
 import { saveProduct, addActivity, productToUI } from './firebase.mjs';
 
@@ -108,6 +109,62 @@ export async function handleImports(req,db,path,method){
     const result=await db.collection(COLLECTION).orderBy('updated_at','desc').limit(100).get();
     return json({items:result.docs.map(d=>({...d.data(),id:d.id}))});
   }
+  if(path==='/api/imports/photo'&&method==='POST'){
+    if(!process.env.OPENAI_BASE_URL||!process.env.OPENAI_API_KEY)
+      return fail('Rasmni avtomatik tanish uchun AI xizmati hali ulanmagan',503);
+    if(Number(req.headers.get('content-length')||0)>5200000)
+      return fail('Rasm 5 MB dan kichik bo‘lishi kerak',413);
+    const form=await req.formData(),file=form.get('photo');
+    if(!(file instanceof File)||file.size>4500000||file.size<150)
+      return fail('JPG, PNG yoki WebP surat tanlang (4.5 MB gacha)',400);
+    const bytes=Buffer.from(await file.arrayBuffer());
+    const png=bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71;
+    const jpg=bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+    const webp=bytes.subarray(0,4).toString('ascii')==='RIFF'&&bytes.subarray(8,12).toString('ascii')==='WEBP';
+    const mime=jpg?'image/jpeg':png?'image/png':webp?'image/webp':null;
+    if(!mime)return fail('Rasm formati notoğri. JPG, PNG yoki WebP tanlang',415);
+    const id=createHash('sha256').update(bytes).digest('hex'),ref=db.collection(COLLECTION).doc(id);
+    const existing=await ref.get();
+    if(existing.exists)return json({item:{...existing.data(),id},duplicate:true});
+    const prompt='Suratda ko‘rinadigan mahsulot uchun o‘zbek tilida neytral savdo kartasi tayyorla. '+
+      'Faqat rasmdan aniq ko‘rinadigan buyum turi, shakli va rangini ayt. '+
+      'Material, brend, o‘lcham, tarkib, sertifikat, kafolat, mahsulot sifati, texnik ko‘rsatkichlarni taxmin qilma. '+
+      'Faqat JSON qaytar: {"title":"...","category":"...","notes":"Faqat ko‘rinadigan faktlar.","description":"...","description_ru":"..."}. '+
+      'Aniq ajratib bo‘lmasa bo‘sh qoldir. Hammasi tahrirlanuvchi qoralama.';
+    let result;
+    try {
+      result=await new OpenAI().responses.create({
+        model:'gpt-5-mini',max_output_tokens:1000,
+        input:[{role:'user',content:[
+          {type:'input_text',text:prompt},
+          {type:'input_image',image_url:'data:'+mime+';base64,'+bytes.toString('base64'),detail:'low'}
+        ]}]
+      });
+    }catch(e){console.error('photo analysis:',e?.status||e?.name||'failed');
+      return fail('AI suratni tahlil qila olmadi. Xizmatni tekşirib qayta urinib ko‘ring',502);
+    }
+    const match=String(result.output_text||'').match(/\{[\s\S]*\}/);
+    let answer;try{answer=JSON.parse(match?.[0]||'')}catch{return fail('AI rasm javobini tushunib bo‘lmadi',502)}
+    const title=safeString(answer.title,160);
+    if(!title)return fail('Suratda mahsulot aniq bilinmadi. Boshqa surat tanlang',422);
+    const key=randomUUID()+'.'+(jpg?'jpg':png?'png':'webp');
+    await getStore({name:'sellerai-images',consistency:'strong'})
+      .set(key,new Blob([bytes],{type:mime}),{metadata:{contentType:mime}});
+    const item={id,fingerprint:id,source_url:'',title,
+      sku:'AUTO-'+id.slice(0,12).toUpperCase(),category:safeString(answer.category,100),
+      notes:safeString(answer.notes,1500),description:safeString(answer.description,3000),
+      description_ru:safeString(answer.description_ru,3000),keywords:[],
+      price:0,cost:0,stock:0,image_key:key,image_url:'',source_meta:{method:'photo'},
+      status:'review',product_id:null,error:'',created_at:now(),updated_at:now()};
+    item.quality=productQuality(item);
+    try{await ref.create(item)}
+    catch(e){
+      await getStore({name:'sellerai-images',consistency:'strong'}).delete(key).catch(()=>{});
+      if(e?.code===6)return json({duplicate:true,item:{...(await ref.get()).data(),id}});
+      throw e;
+    }
+    return json({item,duplicate:false},201);
+  }
   if(path==='/api/imports'&&method==='POST'){
     const body=await bodyJson(req,160000);
     if(!Array.isArray(body.items)||body.items.length<1||body.items.length>LIMIT)
@@ -117,8 +174,10 @@ export async function handleImports(req,db,path,method){
     const existing=await db.getAll(...refs),batch=db.batch();let added=0;
     for(let i=0;i<deduped.length;i++){
       if(existing[i].exists)continue;
-      const data={...deduped[i],status:'new',source_meta:{},description_ru:'',keywords:[],
-        image_url:'',product_id:null,error:'',quality:productQuality(deduped[i]),created_at:now(),updated_at:now()};
+      const internalSku=deduped[i].sku||'AUTO-'+deduped[i].fingerprint.slice(0,12).toUpperCase();
+      const data={...deduped[i],sku:internalSku,status:'new',source_meta:{},description_ru:'',keywords:[],
+        image_key:'',product_id:null,error:'',created_at:now(),updated_at:now()};
+      data.quality=productQuality(data);
       batch.create(refs[i],data);added++;
     }
     if(added)await batch.commit();
@@ -161,7 +220,7 @@ export async function handleImports(req,db,path,method){
     const body=await bodyJson(req,12000);
     const value=normalizeImport({...item,...body,source_url:item.source_url});
     if(!value.title||!value.sku)return fail('Katalogga saqlash uchun nom va SKU majburiy',400);
-    const draft=cleanProduct({...value,status:'draft'});
+    const draft=cleanProduct({...value,image_key:item.image_key||'',status:'draft'});
     const productId=randomUUID(),details={...draft,description_ru:item.description_ru||'',
       keywords:item.keywords||[],source_url:item.source_url||'',import_id:id};
     const result=await saveProduct(db,details,productId);
