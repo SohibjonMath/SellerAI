@@ -43,36 +43,60 @@ export function documentToObject(doc) {
 export function apiConflict(message) {
   return Object.assign(new Error(message), { status: 409 });
 }
+function productSkuKeys(product){
+  if(!product)return [];
+  let variants=[];
+  try{variants=Array.isArray(product.variants)?product.variants:JSON.parse(product.variants_json||'[]')}catch{}
+  return [product.sku,...variants.map(row=>row?.sku)].filter(Boolean);
+}
+function requireUniqueSkuKeys(keys){
+  const unique=new Set();
+  for(const sku of keys){
+    if(!/^[A-Za-z0-9._-]{1,70}$/.test(sku))throw apiConflict('SKU notoğri');
+    const normalized=sku.toLowerCase();
+    if(unique.has(normalized))throw apiConflict('Mahsulotda SKU takrorlangan');
+    unique.add(normalized);
+  }
+}
 export async function saveProduct(db, product, id, isUpdate = false, originalDates = null) {
-  const ref = db.collection('sellerai_products').doc(id);
-  const newSku = skuRef(db, product.sku);
-  return db.runTransaction(async tx => {
-    const current = await tx.get(ref);
-    if (isUpdate && !current.exists) throw Object.assign(new Error('Mahsulot topilmadi'), { status: 404 });
-    if (!isUpdate && current.exists) throw apiConflict('Mahsulot allaqachon mavjud');
-    const old = current.exists ? current.data() : null;
-    const oldSku = old?.sku ? skuRef(db, old.sku) : null;
-    const keyRecord = await tx.get(newSku);
-    if (keyRecord.exists && keyRecord.data().product_id !== id) throw apiConflict('Bu SKU bilan mahsulot allaqachon bor');
-    const now = new Date().toISOString();
-    const data = { ...(isUpdate && old ? old : {}), ...product, id,
-      created_at: old?.created_at || originalDates?.created_at || now,
-      updated_at: originalDates?.updated_at || now };
-    if (isUpdate) tx.update(ref, data);
-    else tx.create(ref, data);
-    if (!keyRecord.exists) tx.create(newSku, { product_id: id, sku: product.sku });
-    if (oldSku && oldSku.path !== newSku.path) tx.delete(oldSku);
-    return { product: data, previous: old };
+  const ref=db.collection('sellerai_products').doc(id);
+  const nextKeys=productSkuKeys(product);
+  requireUniqueSkuKeys(nextKeys);
+  return db.runTransaction(async tx=>{
+    const snapshot=await tx.get(ref);
+    if(isUpdate&&!snapshot.exists)throw Object.assign(new Error('Mahsulot topilmadi'),{status:404});
+    if(!isUpdate&&snapshot.exists)throw apiConflict('Mahsulot allaqachon mavjud');
+    const old=snapshot.exists?snapshot.data():null;
+    const previousKeys=productSkuKeys(old),nextRefs=nextKeys.map(sku=>skuRef(db,sku));
+    const keyRecords=[];
+    for(const key of nextRefs)keyRecords.push(await tx.get(key));
+    for(const record of keyRecords){
+      if(record.exists&&record.data().product_id!==id)
+        throw apiConflict('Bu SKU boshqa mahsulotga biriktirilgan');
+    }
+    const now=new Date().toISOString();
+    const data={...(isUpdate&&old?old:{}),...product,id,
+      created_at:old?.created_at||originalDates?.created_at||now,
+      updated_at:originalDates?.updated_at||now};
+    if(isUpdate)tx.update(ref,data);else tx.create(ref,data);
+    for(let i=0;i<nextRefs.length;i++)
+      if(!keyRecords[i].exists)tx.create(nextRefs[i],{product_id:id,sku:nextKeys[i]});
+    const kept=new Set(nextRefs.map(r=>r.path));
+    for(const sku of previousKeys){
+      const oldRef=skuRef(db,sku);
+      if(!kept.has(oldRef.path))tx.delete(oldRef);
+    }
+    return {product:data,previous:old};
   });
 }
-export async function deleteProduct(db, id) {
-  const ref = db.collection('sellerai_products').doc(id);
-  return db.runTransaction(async tx => {
-    const snapshot = await tx.get(ref);
-    if (!snapshot.exists) return null;
-    const previous = snapshot.data();
+export async function deleteProduct(db,id){
+  const ref=db.collection('sellerai_products').doc(id);
+  return db.runTransaction(async tx=>{
+    const snapshot=await tx.get(ref);
+    if(!snapshot.exists)return null;
+    const previous=snapshot.data();
     tx.delete(ref);
-    if (previous.sku) tx.delete(skuRef(db, previous.sku));
+    for(const sku of productSkuKeys(previous))tx.delete(skuRef(db,sku));
     return previous;
   });
 }
