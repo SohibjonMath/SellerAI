@@ -12,9 +12,10 @@ const nonnegative=(value,name,max=AMOUNT_MAX)=>{
 };
 const rate=(value,name)=>{
   const n=Number(value);
-  if(!Number.isFinite(n)||n<0||n>60||!Number.isInteger(n*100))
+  const points=Math.round(n*100);
+  if(!Number.isFinite(n)||n<0||n>60||Math.abs(n*100-points)>1e-8)
     throw invalid(name+' foizi 0–60 oralig‘ida, ikki raqam aniqlikda bölişi kerak');
-  return Math.round(n*100);
+  return points;
 };
 export function validatePricing(raw={}){
   if(!raw || typeof raw!=='object'||Array.isArray(raw))throw invalid('Narx ma’lumotlari notoğri');
