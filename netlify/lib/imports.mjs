@@ -31,9 +31,14 @@ export function normalizeImport(row){
   const title=safeString(row.title||row.name,180),sku=safeString(row.sku,70);
   const category=safeString(row.category,100),notes=safeString(row.notes,2500);
   const description=safeString(row.description,3000);
+  const image_url=safeString(row.image_url||row.image,1500);
+  if(image_url){
+    let url;try{url=new URL(image_url)}catch{throw invalid('Rasm manzili notoğri')}
+    if(url.protocol!=='https:'||url.username||url.password)throw invalid('Rasm manzili xavfsiz HTTPS bölişi kerak');
+  }
   if(sku&&!/^[A-Za-z0-9._-]+$/.test(sku))throw invalid('SKU formatida xato');
   if(!source_url&&!title&&!notes)throw invalid('Mahsulot nomi yoki havolasini kiriting');
-  const data={source_url,title,sku,category,notes,description,
+  const data={source_url,title,sku,category,notes,description,image_url,
     price:amount(row.price,'Narx'),cost:amount(row.cost,'Tannarx'),stock:amount(row.stock,'Qoldiq')};
   const fingerprint=createHash('sha256').update((source_url||sku||title+'|'+notes).toLowerCase()).digest('hex');
   return {...data,fingerprint};
@@ -131,7 +136,7 @@ export async function handleImports(req,db,path,method){
     const data=await bodyJson(req,12000),modified=normalizeImport({...item,...data,source_url:item.source_url});
     const updates={title:modified.title,sku:modified.sku,category:modified.category,
       description:modified.description,notes:modified.notes,price:modified.price,cost:modified.cost,
-      stock:modified.stock,status:'new',error:'',updated_at:now(),quality:productQuality(modified)};
+      stock:modified.stock,image_url:modified.image_url,status:'new',error:'',updated_at:now(),quality:productQuality(modified)};
     await ref.update(updates);return json({item:{...item,...updates,id}});
   }
   if(action==='analyze'&&method==='POST'){
@@ -156,7 +161,7 @@ export async function handleImports(req,db,path,method){
     const body=await bodyJson(req,12000);
     const value=normalizeImport({...item,...body,source_url:item.source_url});
     if(!value.title||!value.sku)return fail('Katalogga saqlash uchun nom va SKU majburiy',400);
-    const draft=cleanProduct({...value,status:'draft',image_url:item.image_url||''});
+    const draft=cleanProduct({...value,status:'draft'});
     const productId=randomUUID(),details={...draft,description_ru:item.description_ru||'',
       keywords:item.keywords||[],source_url:item.source_url||'',import_id:id};
     const result=await saveProduct(db,details,productId);
