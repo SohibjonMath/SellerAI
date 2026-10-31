@@ -65,7 +65,7 @@ function importCard(item){
     </div><div class="import-quality"><strong>${score}/100</strong><small>Sifat bahosi</small></div></div>
     ${item.source_url?`<a class="import-source" href="${esc(item.source_url)}" target="_blank" rel="noopener noreferrer">${ico('external',13)} Asl manbani açiş</a>`:''}
     ${item.error?`<p class="import-error">${esc(item.error)}</p>`:''}
-    ${item.image_url?`<img class="import-thumbnail" src="${esc(item.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}
+    ${item.image_key||item.image_url?`<img class="import-thumbnail" src="${esc(item.image_key?"/api/media/"+item.image_key:item.image_url)}" alt="Mahsulotning asl surati" loading="lazy" referrerpolicy="no-referrer">`:''}
     ${item.description?`<p class="import-summary">${esc(item.description.slice(0,320))}${item.description.length>320?'…':''}</p>`:''}
     ${item.description_ru?`<details class="import-russian"><summary>Rusça tavsif</summary><p>${esc(item.description_ru)}</p></details>`:''}
     ${missing?`<p class="import-missing">Töliqtiriş: ${esc(missing)}</p>`:''}
@@ -79,20 +79,25 @@ function importCard(item){
     </div></article>`;
 }
 function importEditForm(item){
-  return `<form class="import-edit-form" id="import-edit-form" data-id="${item.id}">
-    <div class="import-fields">
-      <label>Mahsulot nomi<input class="field" name="title" value="${esc(item.title||'')}" maxlength="180"></label>
-      <label>SKU<input class="field" name="sku" value="${esc(item.sku||'')}" maxlength="70"></label>
-      <label>Kategoriya<input class="field" name="category" value="${esc(item.category||'')}" maxlength="100"></label>
-      <label>Tannarx, so‘m<input class="field" type="number" min="0" name="cost" value="${Number(item.cost||0)}"></label>
-      <label>Sotuv narxi, so‘m<input class="field" type="number" min="0" name="price" value="${Number(item.price||0)}"></label>
-      <label>Qoldiq<input class="field" type="number" min="0" name="stock" value="${Number(item.stock||0)}"></label>
-      <label class="import-span">Rasmning HTTPS manzili<input class="field" name="image_url" type="url" value="${esc(item.image_url||'')}" placeholder="https://..."></label>
-      <label class="import-span">Mahsulot haqidagi aniq faktlar<textarea name="notes" class="field" rows="3" maxlength="2500">${esc(item.notes||'')}</textarea></label>
-      <label class="import-span">Özbekça tavsif<textarea name="description" class="field" rows="4" maxlength="3000">${esc(item.description||'')}</textarea></label>
-    </div>
-    <button class="btn btn-primary" type="submit">${ico('check',15)} Özgaririşlarni saqlaş</button>
-  </form>`;
+ return `<form class="import-edit-form" id="import-edit-form" data-id="${item.id}">
+  <div class="import-fields">
+   <label class="import-span">Mahsulot nomi <input class="field" name="title" value="${esc(item.title||'')}" maxlength="180" required placeholder="Mahsulot nomi"></label>
+   <label class="import-span">Tannarx, so‘m (ma’lum bo‘lsa) <input class="field" type="number" min="0" name="cost" value="${Number(item.cost||0)}"></label>
+  </div>
+  <details class="quick-import-advanced">
+   <summary>Qo‘shimcha ma’lumotlar (ixtiyoriy)</summary>
+   <div class="import-fields">
+    <label>Ichki SKU <input class="field" name="sku" value="${esc(item.sku||'')}" maxlength="70"></label>
+    <label>Kategoriya <input class="field" name="category" value="${esc(item.category||'')}" maxlength="100"></label>
+    <label>Sotuv narxi <input class="field" type="number" min="0" name="price" value="${Number(item.price||0)}"></label>
+    <label>Qoldiq <input class="field" type="number" min="0" name="stock" value="${Number(item.stock||0)}"></label>
+    <label class="import-span">Rasm havolasi <input class="field" name="image_url" type="url" value="${esc(item.image_url||'')}" placeholder="https://..."></label>
+    <label class="import-span">Aniq xususiyatlar <textarea name="notes" class="field" rows="2" maxlength="2500">${esc(item.notes||'')}</textarea></label>
+    <label class="import-span">Tavsif <textarea name="description" class="field" rows="3" maxlength="3000">${esc(item.description||'')}</textarea></label>
+   </div>
+  </details>
+  <button class="btn btn-primary" type="submit">${ico('check',15)} Saqlash</button>
+ </form>`;
 }
 function importCenterView(){
  const items=state.imports||[];
