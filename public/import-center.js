@@ -194,7 +194,7 @@ async function quickImport(item){
  if(!id)throw Error('Import qoralamasi yaratilmadi');
  await loadImports(true);
  const rowData=(state.imports||[]).find(x=>x.id===id);
- if(rowData?.status!=='saved'){
+ if(rowData&&rowData.status!=='saved'){
   state.importStatus='Mahsulot ma’lumotlari izlanmoqda...';
   const response=await api('/api/imports/'+id+'/analyze',{method:'POST',body:'{}'});
   const position=state.imports.findIndex(x=>x.id===id);
@@ -241,7 +241,7 @@ document.addEventListener('submit',async event=>{
    const result=await api('/api/imports/photo',{method:'POST',body:data});
    await loadImports(true);
    state.importFilter='all';
-   state.importStatus=result.duplicate?'Bu surat avval kiritilgan.':'Surat tahlil qilindi, qoralama tayyor.';
+   state.importStatus=result.duplicate?'Bu surat avval kiritilgan.':result.item?.status==='needs_info'?'Surat saqlandi. Yetishmayotgan nomni kiriting.':'Surat tahlil qilindi, qoralama tayyor.';
    toast(state.importStatus);
   }catch(e){state.importStatus=e.message;toast(e.message,true)}
   finally{state.importBusy=false;render()}return;
