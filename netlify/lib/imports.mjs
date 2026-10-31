@@ -4,6 +4,7 @@ import { getStore } from '@netlify/blobs';
 import { json, fail, bodyJson, cleanProduct, safeString } from './common.mjs';
 import { saveProduct, addActivity, productToUI } from './firebase.mjs';
 import { calculatePrice } from './pricing.mjs';
+import { prepareVariants } from './product-variants.mjs';
 
 const COLLECTION='sellerai_imports', LIMIT=30, MAX_HTML=120000;
 const SITES=['1688.com','alibaba.com','uzum.uz','orzumall.uz'];
@@ -184,7 +185,7 @@ export async function handleImports(req,db,path,method){
     if(added)await batch.commit();
     return json({added,duplicates:items.length-added,ids:deduped.map(item=>item.fingerprint)},201);
   }
-  const m=/^\/api\/imports\/([a-f0-9]{64})(?:\/(analyze|save))?$/.exec(path);
+  const m=/^\/api\/imports\/([a-f0-9]{64})(?:\/(analyze|preview|save))?$/.exec(path);
   if(!m)return fail('Import xizmati topilmadi',404);
   const [,id,action]=m,{ref,item}=await getItem(db,id);
   if(!action&&method==='DELETE'){
@@ -217,29 +218,48 @@ export async function handleImports(req,db,path,method){
     }
     await ref.update(data);return json({item:{...item,...data,id}});
   }
+  if(action==='preview'&&method==='POST'){
+    if(item.product_id)return fail('Mahsulot saqlangan',409);
+    const body=await bodyJson(req,30000);
+    const cost=amount(body.cost??item.cost,'Tannarx');
+    const profit=amount(body.profit??item.target_profit??0,'Sof foyda');
+    const settingsSnap=await db.collection('sellerai_settings').doc('pricing').get();
+    const settings=settingsSnap.exists?settingsSnap.data():null;
+    const configured=settings?.confirmed===true;
+    const variantResult=prepareVariants(body.variants||[],item.sku,cost,profit,settings);
+    const parentQuote=configured&&cost>0&&profit>0?
+      calculatePrice({...settings,cost,profit}):null;
+    const variants=variantResult.variants.map(v=>({
+      name:v.name,value:v.value,sku:v.sku,cost:v.cost,profit:v.profit,
+      price:v.price,stock:v.stock,hasImage:Boolean(v.image_key||v.image_url)
+    }));
+    return json({configured,profit,cost,price:parentQuote?.recommendedPrice||0,
+      netProfit:parentQuote?.netProfit||0,variants,
+      message:!configured?'Komissiya va logistika sozlamalari hali tasdiqlanmagan':
+        cost<=0?'Tannarxni kiriting':profit<=0?'Sof foydani kiriting':''});
+  }
   if(action==='save'&&method==='POST'){
     if(item.product_id)return fail('Katalogga avval saqlangan',409);
     const body=await bodyJson(req,12000);
     const value=normalizeImport({...item,...body,source_url:item.source_url});
     if(!value.title||!value.sku)return fail('Katalogga saqlash uchun nom va SKU majburiy',400);
+    const baseProfit=amount(body.profit??item.target_profit??0,'Sof foyda');
+    const savedPricing=await db.collection('sellerai_settings').doc('pricing').get();
+    const pricing=savedPricing.exists?savedPricing.data():null;
     let price=value.price,priceAutoCalculated=false;
-    if(value.cost>0 && price===0){
-      const savedPricing=await db.collection('sellerai_settings').doc('pricing').get();
-      const pricing=savedPricing.exists?savedPricing.data():null;
-      if(pricing?.confirmed===true && Number(pricing.profit)>0){
-        try{
-          price=calculatePrice({...pricing,cost:value.cost}).recommendedPrice;
-          priceAutoCalculated=true;
-        }catch(e){console.error('Automatic price preview:',e?.name||'invalid_settings')}
-      }
+    if(value.cost>0&&baseProfit>0&&!price&&pricing?.confirmed===true){
+      price=calculatePrice({...pricing,cost:value.cost,profit:baseProfit}).recommendedPrice;
+      priceAutoCalculated=true;
     }
-    const draft=cleanProduct({...value,price,image_key:item.image_key||'',status:'draft'});
+    const prepared=prepareVariants(body.variants||[],value.sku,value.cost,baseProfit,pricing);
+    const draft=cleanProduct({...value,price,target_profit:baseProfit,
+      image_key:item.image_key||'',variants:prepared.variants,status:'draft'});
     const productId=randomUUID(),details={...draft,description_ru:item.description_ru||'',
       keywords:item.keywords||[],source_url:item.source_url||'',import_id:id};
     const result=await saveProduct(db,details,productId);
     await addActivity(db,productId,'imported',draft.title);
     await ref.update({status:'saved',product_id:productId,updated_at:now(),quality:productQuality(value)});
-    return json({product:productToUI(result.product),priceAutoCalculated});
+    return json({product:productToUI(result.product),priceAutoCalculated,variantPricesCalculated:prepared.priced,variantPricesMissing:prepared.unpriced});
   }
   return fail('Import xizmati topilmadi',404);
 }
