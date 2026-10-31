@@ -119,7 +119,23 @@ async function api(req,context){
       await addActivity(db,id,'deleted','Mahsulot o‘chirildi');
       return json({ok:true});
     }
-    const p=cleanProduct(await bodyJson(req));
+    const incoming=await bodyJson(req);
+    // Legacy edit dialog exposes only variant name/value. Preserve per-SKU cost,
+    // profit, stock and image when the existing option remains unchanged.
+    const current=await db.collection('sellerai_products').doc(id).get();
+    if(current.exists){
+      const source=current.data();
+      let existing=[];
+      try{existing=JSON.parse(source.variants_json||'[]')}catch{}
+      if(Array.isArray(incoming.variants)){
+        incoming.variants=incoming.variants.map(row=>{
+          const previous=existing.find(v=>v.name===row.name&&v.value===row.value);
+          return previous?{...previous,...row}:row;
+        });
+      }
+      if(incoming.target_profit===undefined)incoming.target_profit=source.target_profit||0;
+    }
+    const p=cleanProduct(incoming);
     const {product,previous}=await saveProduct(db,p,id,true);
     if(previous.image_key&&previous.image_key!==p.image_key)await removeUnused(db,previous.image_key);
     await addActivity(db,id,'updated',p.title);
