@@ -22,8 +22,8 @@ export async function handleMigration(req,db,path,method){
   if(!path.startsWith('/api/migration/'))return null;
   if(path==='/api/migration/status'&&method==='GET'){
     const [products,activities]=await Promise.all([
-      db.collection('products').count().get(),
-      db.collection('activity').count().get()
+      db.collection('sellerai_products').count().get(),
+      db.collection('sellerai_activity').count().get()
     ]);
     return json({products:products.data().count,activities:activities.data().count});
   }
@@ -44,7 +44,7 @@ export async function handleMigration(req,db,path,method){
         const p=cleanProduct({...raw,variants:raw.variants||[]});
         const id=String(raw.id||'');
         if(!/^[a-f0-9-]{36}$/.test(id))throw Error('Mahsulot identifikatori noto‘g‘ri');
-        const target=db.collection('products').doc(id);
+        const target=db.collection('sellerai_products').doc(id);
         const existing=await target.get();
         if(existing.exists){products++;continue}
         if(p.image_key){
@@ -70,7 +70,7 @@ export async function handleMigration(req,db,path,method){
       try{
         const id=String(a.id||'');
         if(!id||id.includes('/')||id.length>140)continue;
-        await db.collection('activity').doc(id).create({
+        await db.collection('sellerai_activity').doc(id).create({
           id,product_id:a.product_id||null,action:String(a.action||'').slice(0,80),
           detail:String(a.detail||'').slice(0,2000),
           created_at:String(a.created_at||new Date().toISOString())
