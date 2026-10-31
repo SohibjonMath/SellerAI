@@ -5,8 +5,8 @@ function photoStudio(){
  <form id="studio-form" class="panel-body studio-form">
  <label class="pricing-field">Mahsulot<select id="studio-product" name="product" class="field"><option value="">Faqat faylni yuklab olish</option>
  ${state.products.map(p=>`<option value="${esc(p.id)}" ${state.studioProduct===p.id?'selected':''}>${esc(p.title+' · '+p.sku)}</option>`).join('')}</select></label>
- <label class="pricing-field">Asl rasmlar (1–6 dona)<input class="field" type="file" name="photos" accept="image/jpeg,image/png,image/webp" multiple required></label>
- <p class="import-help">Suratlarni kesmaymiz va rangini özgartirmaymiz. 3:4 rasmni kompyuteringizda yaratamiz.</p>
+ <label class="pricing-field">Asl rasmlar (1–6 dona)<input class="field" type="file" name="photos" accept="image/jpeg,image/png,image/webp" multiple></label>
+ <p class="import-help">${state.studioFiles?.length?state.studioFiles.length+' ta rasm tanlangan. Sarlavhani özgartirib, öşa rasmlarni qayta ishlatishingiz mumkin.':'Avval rasmlarni tanlang.'}</p><p class="import-help">Suratlarni kesmaymiz va rangini özgartirmaymiz. 3:4 rasmni kompyuteringizda yaratamiz.</p>
  <div class="studio-mode"><label><input type="radio" name="mode" value="primary" ${state.studioMode!=='collage'?'checked':''}> Asosiy rasm (bitta surat)</label>
  <label><input type="radio" name="mode" value="collage" ${state.studioMode==='collage'?'checked':''}> Variantlar kollaji (1–6 surat)</label></div>
  <label class="pricing-field">Sarlavha (faqat kollaj uchun)<input class="field" name="title" maxlength="90" value="${esc(state.studioTitle||'')}" placeholder="Mahsulot variantlari"></label>
@@ -128,7 +128,9 @@ document.addEventListener('change',event=>{
 document.addEventListener('submit',async event=>{
  if(event.target.id!=='studio-form')return;
  event.preventDefault();if(state.studioBusy)return;
- const data=new FormData(event.target),files=data.getAll('photos').filter(f=>f instanceof File&&f.size);
+ const data=new FormData(event.target),selected=data.getAll('photos').filter(f=>f instanceof File&&f.size);
+ const files=selected.length?selected:(state.studioFiles||[]);
+ if(selected.length)state.studioFiles=selected;
  state.studioBusy=true;state.studioProduct=String(data.get('product')||'');
  state.studioMode=String(data.get('mode')||'primary');
  state.studioTitle=String(data.get('title')||'').trim();state.studioLabels=String(data.get('labels')||'').trim();
