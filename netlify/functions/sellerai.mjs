@@ -1,8 +1,8 @@
-import { getDatabase } from '../lib/db.mjs';
+import { getDb, saveProduct, deleteProduct, addActivity, productToUI, documentToObject } from '../lib/firebase.mjs';
 import { getStore } from '@netlify/blobs';
 import OpenAI from 'openai';
-import { json,fail,dbQuery,uuid,adminSecret,makeCookie,authenticated,comparePassword,hmacIp,
-  assertOrigin,bodyJson,cleanProduct,mapProduct,record,safeError,PRODUCT_COLS } from '../lib/common.mjs';
+import { json,fail,uuid,adminSecret,makeCookie,authenticated,comparePassword,hmacIp,
+  assertOrigin,bodyJson,cleanProduct,safeError } from '../lib/common.mjs';
 import { handleUzum } from '../lib/uzum.mjs';
 import { handleMigration } from '../lib/migration.mjs';
 
@@ -14,21 +14,24 @@ async function api(req,context){
   if(path==='/api/health'&&method==='GET')return json({status:'ok',platform:'Netlify'});
   if(!path.startsWith('/api/'))return fail('Xizmat topilmadi',404);
   assertOrigin(req);
-  const secret=adminSecret(),db=getDatabase();
+  const secret=adminSecret(),db=getDb();
   if(path==='/api/login'&&method==='POST'){
     const hash=hmacIp(context?.ip||'unknown',secret),now=Math.floor(Date.now()/1000);
-    const previous=(await dbQuery(db,'SELECT failed_count,window_start FROM login_attempts WHERE ip_hash=$1',[hash]))[0];
+    const loginRef=db.collection('login_attempts').doc(hash);
+    const previous=(await loginRef.get()).data();
     if(previous&&now-Number(previous.window_start)<900&&previous.failed_count>=8)
       return fail('Kirish urinishlari ko‘paydi. 15 daqiqadan keyin urinib ko‘ring',429);
     const body=await bodyJson(req,1000);
     if(typeof body.password!=='string'||body.password.length>512||!comparePassword(body.password,secret)){
-      const update='INSERT INTO login_attempts (ip_hash,failed_count,window_start) VALUES ($1,1,$2) ON CONFLICT (ip_hash) DO UPDATE SET '+
-        'failed_count=CASE WHEN $2-login_attempts.window_start<900 THEN login_attempts.failed_count+1 ELSE 1 END,'+
-        'window_start=CASE WHEN $2-login_attempts.window_start<900 THEN login_attempts.window_start ELSE $2 END';
-      await dbQuery(db,update,[hash,now]);
+      await db.runTransaction(async tx=>{
+        const snap=await tx.get(loginRef),prior=snap.data();
+        const active=prior&&now-Number(prior.window_start)<900;
+        tx.set(loginRef,{failed_count:active?Math.min(100,Number(prior.failed_count)+1):1,
+          window_start:active?prior.window_start:now});
+      });
       return fail('Parol noto‘g‘ri',401);
     }
-    await dbQuery(db,'DELETE FROM login_attempts WHERE ip_hash=$1',[hash]);
+    await loginRef.delete();
     return json({ok:true},200,{'Set-Cookie':makeCookie(secret)});
   }
   if(!authenticated(req,secret))return fail('Avval tizimga kiring',401);
@@ -40,49 +43,49 @@ async function api(req,context){
   const migration=await handleMigration(req,db,path,method);
   if(migration)return migration;
   if(path==='/api/stats'&&method==='GET'){
-    const stats=(await dbQuery(db,'SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE status=\'ready\') AS ready,'+
-      ' COALESCE(SUM(stock),0) AS stock,COALESCE(SUM(stock*cost),0) AS capital,'+
-      ' COALESCE(SUM(stock*price),0) AS potential_revenue FROM products'))[0];
-    const activity=await dbQuery(db,'SELECT id,product_id,action,detail,created_at FROM activity ORDER BY created_at DESC LIMIT 8');
-    const numbers={};for(const [key,value] of Object.entries(stats))numbers[key]=Number(value??0);
-    return json({stats:numbers,activity});
+    const [allProducts,history]=await Promise.all([
+      db.collection('products').select('stock','price','cost','status').get(),
+      db.collection('activity').orderBy('created_at','desc').limit(8).get()
+    ]);
+    const stats={total:0,ready:0,stock:0,capital:0,potential_revenue:0};
+    for(const d of allProducts.docs){
+      const p=d.data(),qty=Number(p.stock||0);
+      stats.total++;if(p.status==='ready')stats.ready++;
+      stats.stock+=qty;stats.capital+=qty*Number(p.cost||0);
+      stats.potential_revenue+=qty*Number(p.price||0);
+    }
+    return json({stats,activity:history.docs.map(d=>documentToObject(d))});
   }
   if(path==='/api/products'&&method==='GET'){
-    const q=(url.searchParams.get('q')||'').trim().slice(0,80),status=url.searchParams.get('status');
-    const args=[],where=[];
-    if(q){args.push('%'+q+'%');where.push('(title ILIKE $1 OR sku ILIKE $1 OR category ILIKE $1)')}
-    if(status==='draft'||status==='ready'){args.push(status);where.push('status=$'+args.length)}
-    const sql='SELECT '+PRODUCT_COLS+' FROM products'+(where.length?' WHERE '+where.join(' AND '):'')+
-      ' ORDER BY updated_at DESC,id DESC LIMIT 500';
-    return json({products:(await dbQuery(db,sql,args)).map(mapProduct)});
+    const q=(url.searchParams.get('q')||'').trim().toLowerCase().slice(0,80),
+      status=url.searchParams.get('status');
+    const snapshot=await db.collection('products').orderBy('updated_at','desc').limit(500).get();
+    let products=snapshot.docs.map(doc=>productToUI(documentToObject(doc)));
+    if(q)products=products.filter(p=>[p.title,p.sku,p.category].some(v=>String(v||'').toLowerCase().includes(q)));
+    if(status==='draft'||status==='ready')products=products.filter(p=>p.status===status);
+    return json({products});
   }
   if(path==='/api/products'&&method==='POST'){
     const p=cleanProduct(await bodyJson(req)),id=uuid();
-    const args=[id,p.sku,p.title,p.category,p.description,p.price,p.cost,p.stock,p.status,p.image_key,p.image_url,p.variants_json];
-    const sql='INSERT INTO products (id,sku,title,category,description,price,cost,stock,status,image_key,image_url,variants_json) '+
-      'VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING '+PRODUCT_COLS;
-    const rows=await dbQuery(db,sql,args);
-    await record(db,id,'created',p.title);
-    return json({product:mapProduct(rows[0])},201);
+    const data=(await saveProduct(db,p,id)).product;
+    await addActivity(db,id,'created',p.title);
+    return json({product:productToUI(data)},201);
   }
   const match=/^\/api\/products\/([a-f0-9-]{36})$/.exec(path);
   if(match&&(method==='PATCH'||method==='DELETE')){
-    const id=match[1],previous=(await dbQuery(db,'SELECT id,image_key FROM products WHERE id=$1',[id]))[0];
-    if(!previous)return fail('Mahsulot topilmadi',404);
+    const id=match[1];
     if(method==='DELETE'){
-      await dbQuery(db,'DELETE FROM products WHERE id=$1',[id]);
-      if(previous.image_key)await removeUnused(db,previous.image_key);
-      await record(db,id,'deleted','Mahsulot o‘chirildi');
+      const old=await deleteProduct(db,id);
+      if(!old)return fail('Mahsulot topilmadi',404);
+      if(old.image_key)await removeUnused(db,old.image_key);
+      await addActivity(db,id,'deleted','Mahsulot o‘chirildi');
       return json({ok:true});
     }
     const p=cleanProduct(await bodyJson(req));
-    const args=[p.sku,p.title,p.category,p.description,p.price,p.cost,p.stock,p.status,p.image_key,p.image_url,p.variants_json,id];
-    const sql='UPDATE products SET sku=$1,title=$2,category=$3,description=$4,price=$5,cost=$6,stock=$7,status=$8,'+
-      'image_key=$9,image_url=$10,variants_json=$11,updated_at=NOW() WHERE id=$12 RETURNING '+PRODUCT_COLS;
-    const rows=await dbQuery(db,sql,args);
+    const {product,previous}=await saveProduct(db,p,id,true);
     if(previous.image_key&&previous.image_key!==p.image_key)await removeUnused(db,previous.image_key);
-    await record(db,id,'updated',p.title);
-    return json({product:mapProduct(rows[0])});
+    await addActivity(db,id,'updated',p.title);
+    return json({product:productToUI(product)});
   }
   if(path==='/api/media'&&method==='POST'){
     if(Number(req.headers.get('content-length')||0)>6000000)return fail('Rasm 5 MB dan kichik bo‘lishi kerak',413);
@@ -108,7 +111,7 @@ async function api(req,context){
       'X-Content-Type-Options':'nosniff'}});
   }
   if(media&&method==='DELETE'){
-    if((await dbQuery(db,'SELECT id FROM products WHERE image_key=$1 LIMIT 1',[media[1]])).length)
+    if(!(await db.collection('products').where('image_key','==',media[1]).limit(1).get()).empty)
       return fail('Rasm mahsulotga biriktirilgan',409);
     await store().delete(media[1]);
     return json({ok:true});
@@ -117,8 +120,8 @@ async function api(req,context){
   return fail('Bunday xizmat topilmadi',404);
 }
 async function removeUnused(db,key){
-  if(!(await dbQuery(db,'SELECT id FROM products WHERE image_key=$1 LIMIT 1',[key])).length)
-    await store().delete(key);
+  const ref=await db.collection('products').where('image_key','==',key).limit(1).get();
+  if(ref.empty)await store().delete(key);
 }
 async function aiDraft(req){
   const body=await bodyJson(req,6000);
