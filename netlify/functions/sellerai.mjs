@@ -11,7 +11,16 @@ const MAX_IMAGE=5000000;
 
 async function api(req,context){
   const url=new URL(req.url),path=url.pathname,method=req.method;
-  if(path==='/api/health'&&method==='GET')return json({status:'ok',platform:'Netlify'});
+  if(path==='/api/health'&&method==='GET'){
+    if(!process.env.ADMIN_PASSWORD||!process.env.FIREBASE_SERVICE_ACCOUNT_JSON)
+      return json({status:'needs_setup',platform:'Netlify',database:'Firebase Firestore'},503);
+    try{
+      await getDb().collection('products').limit(1).get();
+      return json({status:'ok',platform:'Netlify',database:'Firebase Firestore'});
+    }catch{
+      return json({status:'database_unavailable',platform:'Netlify',database:'Firebase Firestore'},503);
+    }
+  }
   if(!path.startsWith('/api/'))return fail('Xizmat topilmadi',404);
   assertOrigin(req);
   const secret=adminSecret(),db=getDb();
