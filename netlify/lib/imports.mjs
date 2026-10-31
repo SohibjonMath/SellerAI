@@ -181,7 +181,7 @@ export async function handleImports(req,db,path,method){
       batch.create(refs[i],data);added++;
     }
     if(added)await batch.commit();
-    return json({added,duplicates:items.length-added},201);
+    return json({added,duplicates:items.length-added,ids:deduped.map(item=>item.fingerprint)},201);
   }
   const m=/^\/api\/imports\/([a-f0-9]{64})(?:\/(analyze|save))?$/.exec(path);
   if(!m)return fail('Import xizmati topilmadi',404);
@@ -195,7 +195,8 @@ export async function handleImports(req,db,path,method){
     const data=await bodyJson(req,12000),modified=normalizeImport({...item,...data,source_url:item.source_url});
     const updates={title:modified.title,sku:modified.sku,category:modified.category,
       description:modified.description,notes:modified.notes,price:modified.price,cost:modified.cost,
-      stock:modified.stock,image_url:modified.image_url,status:'new',error:'',updated_at:now(),quality:productQuality(modified)};
+      stock:modified.stock,image_url:modified.image_url,status:'new',error:'',updated_at:now(),
+      quality:productQuality({...modified,image_key:item.image_key||''})};
     await ref.update(updates);return json({item:{...item,...updates,id}});
   }
   if(action==='analyze'&&method==='POST'){
