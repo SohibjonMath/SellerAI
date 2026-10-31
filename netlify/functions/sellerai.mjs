@@ -66,6 +66,8 @@ async function api(req,context){
       settings[key]=validated[key]/100;
     for(const key of ['inbound','packaging','fulfillment','other','profit','step'])
       settings[key]=validated[key];
+    settings.confirmed=true;
+    settings.updated_at=new Date().toISOString();
     await db.collection('sellerai_settings').doc('pricing').set(settings);
     return json({settings});
   }
@@ -74,10 +76,7 @@ async function api(req,context){
     const snapshot=await db.collection('sellerai_settings').doc('pricing').get();
     const saved=snapshot.exists?snapshot.data():DEFAULT_PRICING;
     const quote=calculatePrice({...DEFAULT_PRICING,...saved,...input});
-    const configured=snapshot.exists && (Number(saved.commission||0)>0
-      || Number(saved.payment||0)>0 || Number(saved.fulfillment||0)>0
-      || Number(saved.inbound||0)>0 || Number(saved.packaging||0)>0
-      || Number(saved.tax||0)>0);
+    const configured=snapshot.exists && saved.confirmed===true;
     return json({quote,tariffsConfigured:configured});
   }
 
