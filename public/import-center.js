@@ -22,6 +22,7 @@ function normalizeCsvHeader(value){
   const key=String(value||'').toLocaleLowerCase('uz').replace(/[\s_\-()]+/g,'').trim();
   const names={
     source_url:['url','link','havola','sourceurl','producturl','mahsulothavolasi'],
+    image_url:['image','imageurl','photo','photo_url','rasm','rasmurl','surat'], 
     title:['title','name','nomi','nom','mahsulot','mahsulotnomi','наименование','название'],
     sku:['sku','artikul','артикул','barcode','kod'],
     category:['category','kategoriya','категория'],
@@ -64,6 +65,7 @@ function importCard(item){
     </div><div class="import-quality"><strong>${score}/100</strong><small>Sifat bahosi</small></div></div>
     ${item.source_url?`<a class="import-source" href="${esc(item.source_url)}" target="_blank" rel="noopener noreferrer">${ico('external',13)} Asl manbani açiş</a>`:''}
     ${item.error?`<p class="import-error">${esc(item.error)}</p>`:''}
+    ${item.image_url?`<img class="import-thumbnail" src="${esc(item.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:''}
     ${item.description?`<p class="import-summary">${esc(item.description.slice(0,320))}${item.description.length>320?'…':''}</p>`:''}
     ${item.description_ru?`<details class="import-russian"><summary>Rusça tavsif</summary><p>${esc(item.description_ru)}</p></details>`:''}
     ${missing?`<p class="import-missing">Töliqtiriş: ${esc(missing)}</p>`:''}
@@ -84,6 +86,7 @@ function importEditForm(item){
       <label>Tannarx, so‘m<input class="field" type="number" min="0" name="cost" value="${Number(item.cost||0)}"></label>
       <label>Sotuv narxi, so‘m<input class="field" type="number" min="0" name="price" value="${Number(item.price||0)}"></label>
       <label>Qoldiq<input class="field" type="number" min="0" name="stock" value="${Number(item.stock||0)}"></label>
+      <label class="import-span">Rasmning HTTPS manzili<input class="field" name="image_url" type="url" value="${esc(item.image_url||'')}" placeholder="https://..."></label>
       <label class="import-span">Mahsulot haqidagi aniq faktlar<textarea name="notes" class="field" rows="3" maxlength="2500">${esc(item.notes||'')}</textarea></label>
       <label class="import-span">Özbekça tavsif<textarea name="description" class="field" rows="4" maxlength="3000">${esc(item.description||'')}</textarea></label>
     </div>
@@ -103,7 +106,7 @@ function importCenterView(){
       <p class="import-help">Qator: nom | SKU | tannarx | sotuv narxi | qoldiq | aniq xususiyatlar. Havolani alohida qatorga qo‘ying.</p>
       <label for="import-csv">CSV fayl (Excel'dan CSV sifatida saqlangan)</label>
       <input id="import-csv" class="field import-file" name="csv" type="file" accept=".csv,text/csv">
-      <p class="import-help">CSV ustunlari: title, sku, category, description, notes, cost, price, stock, url. Bir importda 300 tagacha qator, serverga 30 talik bölib yuboriladi.</p>
+      <p class="import-help">CSV ustunlari: title, sku, category, description, notes, cost, price, stock, url. Bir importda 300 tagacha qator, serverga 30 talik bölib yuboriladi. Rasm uchun image_url ustunidan foydalaning.</p>
       <button type="submit" class="btn btn-primary" ${state.importBusy?'disabled':''}>${ico('upload',16)} Import qiliş</button>
       <p class="import-notice" id="import-feedback" role="status" aria-live="polite">${esc(state.importStatus||'Import boshlanmagan.')}</p>
     </form></section>
@@ -148,7 +151,7 @@ async function importCenterAction(action,node){
   }
   if(state.importBusy)return;
   if(action==='import-analyze'||action==='import-analyze-all'){
-    const list=action==='import-analyze'?[item].filter(Boolean):(state.imports||[]).filter(v=>['new','needs_info'].includes(v.status)).slice(0,10);
+    const list=action==='import-analyze'?[item].filter(Boolean):(state.imports||[]).filter(v=>v.status==='new').concat((state.imports||[]).filter(v=>v.status==='needs_info')).slice(0,10);
     if(!list.length){toast('Tahlil uçun mahsulot yöq');return}
     state.importBusy=true;
     try{
