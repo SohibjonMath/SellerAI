@@ -73,13 +73,13 @@ async function uzumGet(token,path,timeout=11000){
   }
 }
 async function getConnection(db){
-  const snap=await db.collection('marketplace_connections').doc(PROVIDER).get();
+  const snap=await db.collection('sellerai_marketplace_connections').doc(PROVIDER).get();
   return snap.exists?snap.data():null;
 }
 function asShops(v){try{return JSON.parse(v||'[]')}catch{return []}}
-const shopRef=(db,id)=>db.collection('marketplace_snapshots').doc(String(id));
+const shopRef=(db,id)=>db.collection('sellerai_marketplace_snapshots').doc(String(id));
 async function snapshots(db,includeProducts=false){
-  const metadata=await db.collection('marketplace_snapshots').orderBy('shop_id').limit(50).get();
+  const metadata=await db.collection('sellerai_marketplace_snapshots').orderBy('shop_id').limit(50).get();
   const result=[];
   for(const doc of metadata.docs){
     const d=doc.data();
@@ -149,7 +149,7 @@ export async function handleUzum(req,db,secret,path,method){
     if(token.length<16||/[\r\n]/.test(token))return fail('Uzum API kalitini to‘g‘ri kiriting');
     const shops=shopsFrom(await uzumGet(token,'/v1/shops'));
     if(!shops.length)return fail('Bu API kalitga biriktirilgan do‘kon topilmadi',403);
-    const ref=db.collection('marketplace_connections').doc(PROVIDER);
+    const ref=db.collection('sellerai_marketplace_connections').doc(PROVIDER);
     await ref.set({provider:PROVIDER,token_cipher:encrypt(token,secret),shops_json:JSON.stringify(shops),
       status:'connected',checked_at:new Date().toISOString(),last_sync_at:null,updated_at:new Date().toISOString()});
     await clearSnapshots(db);
@@ -157,7 +157,7 @@ export async function handleUzum(req,db,secret,path,method){
   }
   if(path==='/api/integrations/uzum'&&method==='DELETE'){
     await clearSnapshots(db);
-    await db.collection('marketplace_connections').doc(PROVIDER).delete();
+    await db.collection('sellerai_marketplace_connections').doc(PROVIDER).delete();
     return json({connected:false});
   }
   if((path==='/api/integrations/uzum/check'||path==='/api/integrations/uzum/sync')&&method==='POST'){
@@ -167,7 +167,7 @@ export async function handleUzum(req,db,secret,path,method){
     try{token=decrypt(row.token_cipher,secret)}
     catch{return fail('Saqlangan API kalitni o‘qib bo‘lmadi. Qayta ulang',409)}
     const shops=shopsFrom(await uzumGet(token,'/v1/shops'));
-    const ref=db.collection('marketplace_connections').doc(PROVIDER);
+    const ref=db.collection('sellerai_marketplace_connections').doc(PROVIDER);
     await ref.update({shops_json:JSON.stringify(shops),status:'connected',checked_at:new Date().toISOString(),
       updated_at:new Date().toISOString()});
     if(path.endsWith('/check'))return json({connected:true,shops});
@@ -184,7 +184,7 @@ export async function handleUzum(req,db,secret,path,method){
   return fail('Bunday xizmat mavjud emas',404);
 }
 async function clearSnapshots(db){
-  const all=await db.collection('marketplace_snapshots').limit(100).get();
+  const all=await db.collection('sellerai_marketplace_snapshots').limit(100).get();
   for(const doc of all.docs){
     const parts=await doc.ref.collection('parts').get();
     const batch=db.batch();
