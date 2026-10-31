@@ -114,6 +114,7 @@ export async function handleImports(req,db,path,method){
     if(Number(req.headers.get('content-length')||0)>5200000)
       return fail('Rasm 5 MB dan kichik bo‘lishi kerak',413);
     const form=await req.formData(),file=form.get('photo');
+    const hint=safeString(form.get('hint'),180);
     if(!(file instanceof File)||file.size>4500000||file.size<150)
       return fail('JPG, PNG yoki WebP surat tanlang (4.5 MB gacha)',400);
     const bytes=Buffer.from(await file.arrayBuffer());
@@ -144,7 +145,7 @@ export async function handleImports(req,db,path,method){
         answer=JSON.parse(match?.[0]||'{}');
       }catch(e){console.error('photo analysis:',e?.status||e?.name||'failed')}
     }
-    const title=safeString(answer.title,160);
+    const title=safeString(answer.title||hint,160);
     const key=randomUUID()+'.'+(jpg?'jpg':png?'png':'webp');
     await getStore({name:'sellerai-images',consistency:'strong'})
       .set(key,new Blob([bytes],{type:mime}),{metadata:{contentType:mime}});
