@@ -84,3 +84,30 @@
 @media(max-width:600px){.import-cards{padding:10px}.import-card{padding:12px}.import-fields{grid-template-columns:1fr}.import-queue-header .btn,.import-form .btn{width:100%;justify-content:center}.import-quality{min-width:62px}.import-card-top{gap:8px}}
 
 .import-thumbnail{width:100%;max-height:180px;object-fit:contain;border:1px solid var(--line);border-radius:3px;background:#fff}
+
+/* Photo Studio and Pricing: crisp, minimal shared SellerAI layout */
+.studio-two-cols{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,1fr);gap:16px;align-items:start}
+.pricing-form,.studio-form{display:flex;flex-direction:column;gap:14px}
+.pricing-field{display:flex;flex-direction:column;gap:7px;font-size:12px;font-weight:600;color:#002050;min-width:0}
+.pricing-field>span{font-weight:400;color:var(--muted);font-size:10px}
+.pricing-field .field{max-width:100%;width:100%}
+.pricing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.pricing-buttons,.studio-result-actions,.studio-action-buttons{display:flex;gap:9px;flex-wrap:wrap}
+.pricing-highlight{padding:22px 15px;background:#f8fafc;border:1px solid #e3e9f0;display:grid;gap:9px}
+.pricing-highlight>span{font-size:12px;color:#002050}
+.pricing-highlight>strong{color:#f86000;font-size:29px;font-weight:700;line-height:1.2}
+.pricing-breakdown{margin-top:20px}
+.pricing-breakdown h3{font-size:13px;color:#002050;margin:0 0 10px}
+.pricing-breakdown>div{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #e3e9f0;padding:10px 0;font-size:12px}
+.pricing-breakdown strong{font-weight:600;white-space:nowrap}
+.pricing-apply{margin-top:18px;width:100%;justify-content:center}
+.pricing-status,.studio-status{font-size:12px;color:var(--muted);margin-top:12px;line-height:1.6}
+.studio-mode{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.studio-mode label{border:1px solid #e1e7ee;border-radius:4px;padding:11px;display:flex;align-items:center;gap:9px;font-size:11px;font-weight:600;cursor:pointer}
+.studio-mode input{accent-color:#f86000}
+.studio-photo-file{min-height:48px;padding:10px}
+.studio-result-image{width:min(350px,100%);max-height:485px;object-fit:contain;border:1px solid #e1e7ee;background:#fff;display:block;margin:0 auto 16px}
+.studio-result-actions{justify-content:center}
+.studio-result .import-help{margin-top:18px}
+@media(max-width:1100px){.studio-two-cols{grid-template-columns:1fr}}
+@media(max-width:600px){.pricing-grid,.studio-mode{grid-template-columns:1fr}.pricing-buttons>.btn,.studio-result-actions>.btn{width:100%;justify-content:center}.pricing-highlight>strong{font-size:24px}}
