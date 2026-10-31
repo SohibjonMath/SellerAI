@@ -22,7 +22,7 @@ async function ensureSchema(sql) {
   }
 }
 export function getDatabase() {
-  const connectionString = process.env.DATABASE_URL || '';
+  const connectionString = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL || '';
   if (!/^postgres(?:ql)?:\/\//i.test(connectionString)) {
     throw new Error('DATABASE_URL sozlanmagan. Neon PostgreSQL ulanish manzilini Netlify Environment variables bo‘limiga kiriting');
   }
