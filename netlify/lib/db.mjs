@@ -18,7 +18,7 @@ let initialized = null;
 
 async function ensureSchema(sql) {
   for (const statement of SCHEMA) {
-    await sql(statement);
+    await sql.query(statement, []);
   }
 }
 export function getDatabase() {
@@ -42,7 +42,7 @@ export function getDatabase() {
           });
         }
         await initialized;
-        return sql(query, params);
+        return sql.query(query, params);
       }
     }
   };
