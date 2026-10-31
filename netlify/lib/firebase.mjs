@@ -4,12 +4,15 @@ import { getFirestore } from 'firebase-admin/firestore';
 
 let firestore = null;
 let activeApp = '';
+let activeConfigDigest = '';
 
 export async function getDb() {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || '';
   if (!raw) {
     throw Object.assign(new Error('FIREBASE_SERVICE_ACCOUNT_JSON Secret sozlanmagan. Netlify Environment variables bo‘limida kiriting'), { status: 503 });
   }
+  const digest = createHash('sha256').update(raw).digest('hex');
+  if (firestore && activeConfigDigest === digest) return firestore;
   let account;
   try { account = JSON.parse(raw); }
   catch { throw Object.assign(new Error('Firebase Service Account JSON noto‘g‘ri formatda'), { status: 503 }); }
@@ -19,13 +22,14 @@ export async function getDb() {
   }
   try { createPrivateKey(account.private_key); }
   catch { throw Object.assign(new Error('Firebase private_key PEM formati noto‘g‘ri'), { status: 503 }); }
-  const fingerprint = createHash('sha256').update(account.project_id + '\n' + account.private_key_id).digest('hex').slice(0,20);
+  const fingerprint = digest.slice(0,20);
   const appName = 'sellerai-' + fingerprint;
   if (firestore && activeApp === appName) return firestore;
   let app = getApps().find(item => item.name === appName);
   if (!app) app = initializeApp({ credential: cert(account), projectId: account.project_id },appName);
   firestore = getFirestore(app);
   activeApp = appName;
+  activeConfigDigest = digest;
   return firestore;
 }
 
