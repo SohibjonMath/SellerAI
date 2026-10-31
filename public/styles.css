@@ -82,3 +82,5 @@
 .import-span{grid-column:1/-1}
 @media(max-width:1050px){.import-layout{grid-template-columns:1fr}.import-cards{grid-template-columns:1fr}}
 @media(max-width:600px){.import-cards{padding:10px}.import-card{padding:12px}.import-fields{grid-template-columns:1fr}.import-queue-header .btn,.import-form .btn{width:100%;justify-content:center}.import-quality{min-width:62px}.import-card-top{gap:8px}}
+
+.import-thumbnail{width:100%;max-height:180px;object-fit:contain;border:1px solid var(--line);border-radius:3px;background:#fff}
