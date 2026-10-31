@@ -1,30 +1,22 @@
 import { createHash } from 'node:crypto';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+import { loadFirebaseAccount } from './firebase-credentials.mjs';
 
-let firestore;
-export function getDb() {
-  if (firestore) return firestore;
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-  if (!raw) {
-    const error = new Error('Firebase ulanmagan. Netlify Environment variables bo‘limida FIREBASE_SERVICE_ACCOUNT_JSON Secret sozlang.');
-    error.status = 503;
-    throw error;
-  }
-  let account;
-  try { account = JSON.parse(raw); }
-  catch {
-    const error = new Error('Firebase xizmat kaliti JSON formatida emas.');
-    error.status = 503;
-    throw error;
-  }
-  if (!account.project_id || !account.client_email || !account.private_key) {
-    const error = new Error('Firebase xizmat kalitida majburiy maydonlar yo‘q.');
-    error.status = 503;
-    throw error;
-  }
-  if (!getApps().length) initializeApp({ credential: cert(account), projectId: account.project_id });
-  firestore = getFirestore();
+let firestore=null;
+let activeApp='';
+export async function getDb() {
+  const adminPassword=process.env.ADMIN_PASSWORD||'';
+  if(adminPassword.length<12)
+    throw Object.assign(Error('ADMIN_PASSWORD sozlanmagan (kamida 12 belgi)'),{status:503});
+  const account=await loadFirebaseAccount(adminPassword);
+  const fingerprint=createHash('sha256').update(account.project_id+'\n'+account.private_key_id).digest('hex').slice(0,20);
+  const appName='sellerai-'+fingerprint;
+  if(firestore&&activeApp===appName)return firestore;
+  let app=getApps().find(item=>item.name===appName);
+  if(!app)app=initializeApp({credential:cert(account),projectId:account.project_id},appName);
+  firestore=getFirestore(app);
+  activeApp=appName;
   return firestore;
 }
 
