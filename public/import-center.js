@@ -72,6 +72,7 @@ function importCard(item){
     ${editing?importEditForm(item):''}
     <div class="import-actions">
       ${item.status!=='saved'?`<button class="btn" data-action="import-edit" data-id="${item.id}">${ico('edit',15)} ${editing?'Yopiş':'Tahrirlaş'}</button>
+      <button class="btn" data-action="pricing-import" data-id="${item.id}">${ico('coins',15)} Narxlash</button>
       <button class="btn" data-action="import-analyze" data-id="${item.id}" ${state.importBusy?'disabled':''}>${ico('sparkle',15)} AI tahlil</button>
       <button class="btn btn-primary" data-action="import-save" data-id="${item.id}" ${!item.sku||!item.title||state.importBusy?'disabled':''}>${ico('check',15)} Katalogga saqlaş</button>
       <button class="btn import-danger" data-action="import-delete" data-id="${item.id}" ${state.importBusy?'disabled':''} title="Navbatdan öçiriş">${ico('trash',14)}</button>`:`<span class="badge badge-ready">Katalogga ötkazildi</span>`}
