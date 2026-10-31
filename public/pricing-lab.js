@@ -68,6 +68,15 @@ async function pricingAction(action,node){
  }
  if(action==='pricing-apply'){
   const q=state.priceQuote,id=state.priceSelected;if(!q||!id)return;
+  try{
+   const latest=collectPricing();
+   const check=await api('/api/pricing/quote',{method:'POST',body:JSON.stringify({...latest.settings,cost:latest.cost})});
+   if(latest.selected!==id || check.quote.recommendedPrice!==q.recommendedPrice){
+    state.priceQuote=check.quote;state.priceSettings=latest.settings;state.priceCost=latest.cost;
+    state.priceSelected=latest.selected;state.priceStatus='Maydonlar öżgardi. Yangilangan narxni tekşirib qayta tasdiqlang.';
+    render();toast('Narx qayta hisoblandi. Yangisini tekşiring',true);return;
+   }
+  }catch(e){toast(e.message,true);return}
   if(!confirm(sum(q.recommendedPrice)+' narx SellerAI katalogiga yozilsinmi? Uzum narxi o‘zgarmaydi.'))return;
   try{
    if(id.startsWith('product:')){
