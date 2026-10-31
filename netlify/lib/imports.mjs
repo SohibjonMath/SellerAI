@@ -110,8 +110,6 @@ export async function handleImports(req,db,path,method){
     return json({items:result.docs.map(d=>({...d.data(),id:d.id}))});
   }
   if(path==='/api/imports/photo'&&method==='POST'){
-    if(!process.env.OPENAI_BASE_URL||!process.env.OPENAI_API_KEY)
-      return fail('Rasmni avtomatik tanish uchun AI xizmati hali ulanmagan',503);
     if(Number(req.headers.get('content-length')||0)>5200000)
       return fail('Rasm 5 MB dan kichik bo‘lishi kerak',413);
     const form=await req.formData(),file=form.get('photo');
@@ -131,22 +129,21 @@ export async function handleImports(req,db,path,method){
       'Material, brend, o‘lcham, tarkib, sertifikat, kafolat, mahsulot sifati, texnik ko‘rsatkichlarni taxmin qilma. '+
       'Faqat JSON qaytar: {"title":"...","category":"...","notes":"Faqat ko‘rinadigan faktlar.","description":"...","description_ru":"..."}. '+
       'Aniq ajratib bo‘lmasa bo‘sh qoldir. Hammasi tahrirlanuvchi qoralama.';
-    let result;
-    try {
-      result=await new OpenAI().responses.create({
-        model:'gpt-5-mini',max_output_tokens:1000,
-        input:[{role:'user',content:[
-          {type:'input_text',text:prompt},
-          {type:'input_image',image_url:'data:'+mime+';base64,'+bytes.toString('base64'),detail:'low'}
-        ]}]
-      });
-    }catch(e){console.error('photo analysis:',e?.status||e?.name||'failed');
-      return fail('AI suratni tahlil qila olmadi. Xizmatni tekşirib qayta urinib ko‘ring',502);
+    let answer={},aiAvailable=Boolean(process.env.OPENAI_BASE_URL&&process.env.OPENAI_API_KEY);
+    if(aiAvailable){
+      try{
+        const result=await new OpenAI().responses.create({
+          model:'gpt-5-mini',max_output_tokens:1000,
+          input:[{role:'user',content:[
+            {type:'input_text',text:prompt},
+            {type:'input_image',image_url:'data:'+mime+';base64,'+bytes.toString('base64'),detail:'low'}
+          ]}]
+        });
+        const match=String(result.output_text||'').match(/\{[\s\S]*\}/);
+        answer=JSON.parse(match?.[0]||'{}');
+      }catch(e){console.error('photo analysis:',e?.status||e?.name||'failed')}
     }
-    const match=String(result.output_text||'').match(/\{[\s\S]*\}/);
-    let answer;try{answer=JSON.parse(match?.[0]||'')}catch{return fail('AI rasm javobini tushunib bo‘lmadi',502)}
     const title=safeString(answer.title,160);
-    if(!title)return fail('Suratda mahsulot aniq bilinmadi. Boshqa surat tanlang',422);
     const key=randomUUID()+'.'+(jpg?'jpg':png?'png':'webp');
     await getStore({name:'sellerai-images',consistency:'strong'})
       .set(key,new Blob([bytes],{type:mime}),{metadata:{contentType:mime}});
@@ -155,7 +152,9 @@ export async function handleImports(req,db,path,method){
       notes:safeString(answer.notes,1500),description:safeString(answer.description,3000),
       description_ru:safeString(answer.description_ru,3000),keywords:[],
       price:0,cost:0,stock:0,image_key:key,image_url:'',source_meta:{method:'photo'},
-      status:'review',product_id:null,error:'',created_at:now(),updated_at:now()};
+      status:title?'review':'needs_info',product_id:null,
+      error:title?'':(aiAvailable?'Suratdan mahsulotni aniqlab bo‘lmadi. Faqat nomini kiriting.':'Surat saqlandi. AI ulanmagan, mahsulot nomini kiriting.'),
+      created_at:now(),updated_at:now()};
     item.quality=productQuality(item);
     try{await ref.create(item)}
     catch(e){
