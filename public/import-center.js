@@ -322,10 +322,10 @@ function applyVariantWords(){
    const input=form?.querySelector('[name='+field+']');
    if(input&&value>0&&!Number(input.value))input.value=String(value);
   }
-  holder.innerHTML=data.values.map((value,index)=>importVariantRow({
-   name:data.kind,value,
-   stock:current.find(v=>v.value.toLocaleLowerCase('uz')===value.toLocaleLowerCase('uz'))?.stock||0
-  },index)).join('');
+  holder.innerHTML=data.values.map((value,index)=>{
+   const previous=current.find(v=>v.value.toLocaleLowerCase('uz')===value.toLocaleLowerCase('uz'));
+   return importVariantRow(previous?{...previous,name:data.kind,value}:{name:data.kind,value},index);
+  }).join('');
   state.importPendingVariantCount=0;
   state.importSharedPrice=data.samePrice;
   if(data.salePrice>0){
