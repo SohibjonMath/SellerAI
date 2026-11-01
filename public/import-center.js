@@ -69,13 +69,13 @@ function parseVariantInstruction(raw, namesLine=''){
  const declaredCount=countMatch?Number(countMatch[1]):0;
  const kind=/(?:hajm|ml|litr)/i.test(text)?'Hajm':/(?:o['‘’]?lcham|ölçam|razmer|size)/i.test(text)?'Ölçam':'Rang';
  const number=(word)=>{
-  const found=new RegExp('(?:'+word+')\\s*[:=]?\\s*(\\d[\\d\\s]*)(?:\\s*so.?m)?','i').exec(text);
+  const found=new RegExp('\\b(?:'+word+')\\s*[:=]?\\s*(\\d[\\d\\s]*)(?:\\s*so.?m)?','i').exec(text);
   return found?Number(found[1].replace(/\s/g,'')):null;
  };
  const cost=number('tannarx(?:i)?'),profit=number('sof\\s+foyda(?:si)?');
  const explicitPrice=number('(?:sotuv\\s+)?narx(?:i)?');
- const commonAmount=/(?:hammasi|barchasi)\\s+(\\d[\\d\\s]{3,})(?:\\s*so.?m(?:dan)?)/i.exec(text);
- const salePrice=explicitPrice || (commonAmount?Number(commonAmount[1].replace(/\\s/g,'')):null);
+ const commonAmount=/(?:hammasi|barchasi)\s+(\d{4,})(?:\s*so.?m(?:dan)?)?/i.exec(text);
+ const salePrice=explicitPrice || (commonAmount?Number(commonAmount[1]):null);
  let list=String(namesLine||'').trim();
  if(!list){
   const marker=/(?:\d{1,2}\s*(?:ta\s*|xil\s*)?rang(?:lar(?:i)?)?|ranglar(?:i)?|rang(?:i)?|variantlar(?:i)?)\s*[:\-]\s*/i.exec(original);
