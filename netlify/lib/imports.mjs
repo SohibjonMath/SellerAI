@@ -4,7 +4,7 @@ import { getStore } from '@netlify/blobs';
 import { json, fail, bodyJson, cleanProduct, safeString } from './common.mjs';
 import { saveProduct, addActivity, productToUI } from './firebase.mjs';
 import { calculatePrice } from './pricing.mjs';
-import { prepareVariants } from './product-variants.mjs';
+import { prepareVariants, unifyVariantPrices } from './product-variants.mjs';
 
 const COLLECTION='sellerai_imports', LIMIT=30, MAX_HTML=120000;
 const SITES=['1688.com','alibaba.com','uzum.uz','orzumall.uz'];
@@ -232,14 +232,18 @@ export async function handleImports(req,db,path,method){
     const settings=settingsSnap.exists?settingsSnap.data():null;
     const configured=settings?.confirmed===true;
     const variantResult=prepareVariants(body.variants||[],item.sku,cost,profit,settings);
+    const manualPrice=amount(body.price??item.price??0,'Sotuv narxi');
+    const sharedPrice=body.shared_price===true;
+    const prepared=sharedPrice?unifyVariantPrices(variantResult,manualPrice):variantResult;
     const parentQuote=configured&&cost>0&&profit>0?
       calculatePrice({...settings,cost,profit}):null;
-    const variants=variantResult.variants.map(v=>({
+    const variants=prepared.variants.map(v=>({
       name:v.name,value:v.value,sku:v.sku,cost:v.cost,profit:v.profit,
       price:v.price,stock:v.stock,hasImage:Boolean(v.image_key||v.image_url)
     }));
-    return json({configured,profit,cost,price:parentQuote?.recommendedPrice||0,
-      netProfit:parentQuote?.netProfit||0,variants,
+    return json({configured,profit,cost,price:manualPrice||parentQuote?.recommendedPrice||0,
+      netProfit:manualPrice?null:(parentQuote?.netProfit||0),
+      sharedPrice:sharedPrice?prepared.sharedPrice||0:null,manualPrice:Boolean(manualPrice),variants,
       message:!configured?'Komissiya va logistika sozlamalari hali tasdiqlanmagan':
         cost<=0?'Tannarxni kiriting':profit<=0?'Sof foydani kiriting':''});
   }
@@ -256,7 +260,10 @@ export async function handleImports(req,db,path,method){
       price=calculatePrice({...pricing,cost:value.cost,profit:baseProfit}).recommendedPrice;
       priceAutoCalculated=true;
     }
-    const prepared=prepareVariants(body.variants||[],value.sku,value.cost,baseProfit,pricing);
+    const variantPrices=prepareVariants(body.variants||[],value.sku,value.cost,baseProfit,pricing);
+    const sharedPrice=body.shared_price===true;
+    const prepared=sharedPrice?unifyVariantPrices(variantPrices,price):variantPrices;
+    if(sharedPrice&&prepared.sharedPrice>0&&!price)price=prepared.sharedPrice;
     const draft=cleanProduct({...value,price,target_profit:baseProfit,
       image_key:item.image_key||'',variants:prepared.variants,status:'draft'});
     const productId=randomUUID(),details={...draft,description_ru:item.description_ru||'',
