@@ -73,6 +73,9 @@ function parseVariantInstruction(raw, namesLine=''){
   return found?Number(found[1].replace(/\s/g,'')):null;
  };
  const cost=number('tannarx(?:i)?'),profit=number('sof\\s+foyda(?:si)?');
+ const explicitPrice=number('(?:sotuv\\s+)?narx(?:i)?');
+ const commonAmount=/(?:hammasi|barchasi)\\s+(\\d[\\d\\s]{3,})(?:\\s*so.?m(?:dan)?)/i.exec(text);
+ const salePrice=explicitPrice || (commonAmount?Number(commonAmount[1].replace(/\\s/g,'')):null);
  let list=String(namesLine||'').trim();
  if(!list){
   const marker=/(?:\d{1,2}\s*(?:ta\s*|xil\s*)?rang(?:lar(?:i)?)?|ranglar(?:i)?|rang(?:i)?|variantlar(?:i)?)\s*[:\-]\s*/i.exec(original);
@@ -91,7 +94,7 @@ function parseVariantInstruction(raw, namesLine=''){
  if(safe.length>25||declaredCount>25)throw Error('Bir mahsulotda eng ko‘pi 25 ta variant.');
  if(declaredCount&&safe.length&&safe.length!==declaredCount)
   throw Error(declaredCount+' ta variant aytdingiz, lekin '+safe.length+' ta nom yozdingiz.');
- return {kind,values:safe,count:declaredCount||safe.length,samePrice,cost,profit,
+ return {kind,values:safe,count:declaredCount||safe.length,samePrice:samePrice||salePrice>0,cost,profit,salePrice,
   needsNames:Boolean(declaredCount&&!safe.length)};
 }
 
@@ -303,6 +306,7 @@ function applyVariantWords(){
    data.values=current.map(v=>v.value);data.needsNames=false;
   }
   if(data.needsNames){
+   state.importPendingVariantCount=data.count;
    if(namesWrap)namesWrap.hidden=false;
    if(feedback)feedback.textContent=data.count+' ta variant tushunildi. Endi faqat rang nomlarini bitta qatorda kiriting.';
    namesInput?.focus();return;
@@ -322,6 +326,12 @@ function applyVariantWords(){
    name:data.kind,value,
    stock:current.find(v=>v.value.toLocaleLowerCase('uz')===value.toLocaleLowerCase('uz'))?.stock||0
   },index)).join('');
+  state.importPendingVariantCount=0;
+  state.importSharedPrice=data.samePrice;
+  if(data.salePrice>0){
+   const input=form?.querySelector('[name=price]');
+   if(input)input.value=String(data.salePrice);
+  }
   refreshVariantSummary();
   if(namesWrap)namesWrap.hidden=true;
   if(feedback)feedback.textContent=data.values.length+' ta variant tayyor. '+
@@ -381,8 +391,9 @@ async function updateOnePricePreview(){
  const cost=Number(form.querySelector('[name=cost]')?.value||0);
  const profit=Number(form.querySelector('[name=profit]')?.value||0);
  const variants=collectOneVariants().filter(v=>v.value);
- if((cost<=0&&!variants.some(v=>Number(v.cost)>0))||
-    (profit<=0&&!variants.some(v=>Number(v.profit)>0))){
+ if(!Number(form.querySelector('[name=price]')?.value||0)&&
+    ((cost<=0&&!variants.some(v=>Number(v.cost)>0))||
+     (profit<=0&&!variants.some(v=>Number(v.profit)>0)))){
   target.textContent='Narxni hisoblash uchun tannarx va kerakli sof foydani kiriting. Variant tannarxi alohida bölişi mumkin.';
   return;
  }
@@ -390,11 +401,13 @@ async function updateOnePricePreview(){
  target.textContent='Narx hisoblanmoqda...';
  try{
   const answer=await api('/api/imports/'+form.dataset.id+'/preview',{
-   method:'POST',body:JSON.stringify({cost,profit,variants})
+   method:'POST',body:JSON.stringify({cost,profit,variants,
+    price:Number(form.querySelector('[name=price]')?.value||0),
+    shared_price:Boolean(state.importSharedPrice)})
   });
   if(seq!==onePriceRequest||!target.isConnected)return;
-  target.textContent=answer.configured?
-   (answer.price?'Asosiy narx: '+sum(answer.price)+' · Sof foyda: '+sum(answer.netProfit):'')+
+  target.textContent=(answer.configured||answer.manualPrice)?
+   (answer.price?'Umumiy sotuv narxi: '+sum(answer.price)+(answer.netProfit===null?' · Sof foyda tariflarsiz aniqlanmaydi':' · Sof foyda: '+sum(answer.netProfit)):'')+
    (answer.variants.length?' · Variantlar: '+answer.variants.map(v=>v.value+' '+(v.price?sum(v.price):'narx yo‘q')).join(' / '):''):
    'Tariflar tasdiqlanmagan: narx taxmin qilinmaydi. Mahsulotni qoralama sifatida saqlash mumkin.';
  }catch(e){if(seq===onePriceRequest&&target.isConnected)target.textContent=e.message}
@@ -436,9 +449,12 @@ document.addEventListener('submit',async event=>{
   const corrected=String(fields.get('corrected_title')||'').trim();
   const title=corrected||String(fields.get('title')||'').trim();
   if(!title){toast('Faqat mahsulot nomini kiriting',true);return}
-  const values={title,variants:collectOneVariants()};
+  const values={title,variants:collectOneVariants(),shared_price:Boolean(state.importSharedPrice)};
   for(const key of ['sku','category','notes','description','price','cost','stock','profit']){
    if(fields.has(key))values[key]=String(fields.get(key)||'').trim();
+  }
+  if(state.importPendingVariantCount>0){
+   toast(state.importPendingVariantCount+' ta rang nomini bitta qatorda kiriting',true);return;
   }
   if(values.variants.some(v=>!v.value)){
    toast('Har bir variantning rang, hajm yoki ölc̆hamini kiriting',true);return;
