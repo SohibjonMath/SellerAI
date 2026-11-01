@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {prepareVariants} from '../netlify/lib/product-variants.mjs';
+import {prepareVariants,unifyVariantPrices} from '../netlify/lib/product-variants.mjs';
 import {cleanProduct} from '../netlify/lib/common.mjs';
 import {productToUI,saveProduct,deleteProduct,skuRef} from '../netlify/lib/firebase.mjs';
 
@@ -80,4 +80,34 @@ test('Firestore reserves all variant SKUs and removes stale keys on change',asyn
  await deleteProduct(db,'a');
  assert.equal(m.has(skuRef(db,'SHAM-001-V01').path),false);
  assert.equal(m.has(skuRef(db,'SHAM-001').path),false);
+});
+
+test('five shared-price colors have independent SKUs and a single selling price',()=>{
+ const colors=['Pushti','To‘q sariq','Havorang','Sariq','Kulrang'];
+ const variants=prepareVariants(colors.map(value=>({name:'Rang',value})),
+   'BAG-001',7500,10000,pricing);
+ const unified=unifyVariantPrices(variants);
+ assert.equal(unified.variants.length,5);
+ assert.equal(new Set(unified.variants.map(v=>v.sku)).size,5);
+ assert.equal(new Set(unified.variants.map(v=>v.price)).size,1);
+ assert.ok(unified.sharedPrice>0);
+ assert.equal(unified.unpriced,0);
+});
+test('manual common selling price applies to each color without verified fee settings',()=>{
+ const colors=['Pushti','Sariq','Kulrang'];
+ const draft=prepareVariants(colors.map(value=>({name:'Rang',value})),
+   'BAG-002',7500,10000,null);
+ const unified=unifyVariantPrices(draft,35000);
+ assert.equal(unified.sharedPrice,35000);
+ assert.equal(unified.variants.length,3);
+ assert.ok(unified.variants.every(v=>v.price===35000));
+ assert.ok(unified.variants.every(v=>v.price_auto===false));
+});
+test('shared sale price covers the most expensive variant when costs differ',()=>{
+ const costs=[7500,12500,19000];
+ const rows=prepareVariants(costs.map((cost,i)=>({name:'Hajm',value:String(i+1),cost})),
+   'BAG-003',7500,10000,pricing);
+ const unified=unifyVariantPrices(rows);
+ assert.equal(unified.sharedPrice,Math.max(...rows.variants.map(v=>v.price)));
+ assert.ok(unified.variants.every(v=>v.price===unified.sharedPrice));
 });
