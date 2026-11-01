@@ -146,6 +146,23 @@ function productDraftPreview(item){
        <p>Mahsulot katalogga saqlandi. Uzum'dagi narx va qoldiq özgarmadi.</p>
        ${variants.length?`<ul>${variants.map(v=>`<li>${esc(v.value)} · ${esc(v.sku)} · ${v.price?sum(v.price):'Narx belgilanmagan'}</li>`).join('')}</ul>`:''}
        </div>`:`
+      <div class="one-product-talk">
+       <label for="one-variant-instruction">Shunçaki tushuntiring</label>
+       <div class="one-product-talk-line">
+        <textarea id="one-variant-instruction" rows="2" maxlength="1200"
+         placeholder="Masalan: 5 xil rang: pushti, to‘q sariq, havorang, sariq va kulrang. Hammasi bir xil narxda.">${esc(state.importInstruction||'')}</textarea>
+        <button type="button" class="btn btn-primary" data-action="import-apply-instruction">${ico('sparkle',15)} Tushunish</button>
+       </div>
+       <div id="one-instruction-names-wrap" class="one-instruction-names" hidden>
+        <label for="one-instruction-names">Rang nomlarini bitta qatorda yozing</label>
+        <input id="one-instruction-names" class="field" maxlength="1300"
+         placeholder="Pushti, to‘q sariq, havorang, sariq, kulrang">
+        <small>Rasmdagi yozuvlarni öqish xizmati ulanmagan bölsa, nomlarni özingiz körsatishingiz kerak.</small>
+       </div>
+       <p id="one-instruction-feedback" class="one-instruction-feedback" aria-live="polite">
+        Alohida variantlar uçun bir xil narxni qayta-qayta kiritishingiz şert emas.
+       </p>
+      </div>
       <div class="one-product-economics">
        <h3>Mahsulot tannarxi va foydasi</h3>
        <div class="one-product-economics-grid">
@@ -156,9 +173,15 @@ function productDraftPreview(item){
       </div>
       <details class="one-product-variants" ${variants.length?'open':''}>
        <summary>${ico('layers',16)} Rang, hajm yoki ölc̆ham variantlari <span>${variants.length?variants.length+' ta mavjud':'Bo‘lmasa açmaysiz'}</span></summary>
-       <p class="import-help">Har bir variantning öz SKU'si, tannarxi, narxi, qoldiği va surati bölişi mumkin. Umumiy qiymatlar avtomatik meros olinadi.</p>
-       <div id="one-variant-list">${variants.map(importVariantRow).join('')}</div>
-       <button type="button" class="btn one-variant-add" data-action="import-add-variant">${ico('plus',15)} Variant qo‘şiş</button>
+       <p class="import-help">Bir xil narxli variantlar umumiy tannarx va foydadan foydalanadi. Farq bölsa alohida özgartiring.</p>
+       <div id="one-variant-summary" class="one-variant-summary">
+        ${variants.length?`<b>${variants.length} ta variant:</b> ${variants.map(v=>`<span>${esc(v.value)}</span>`).join('')}`:'Variantlar hali belgilanmagan.'}
+       </div>
+       <details class="one-variant-advanced">
+        <summary>Variantlarni alohida özgartirish <span>Faqat zarur bölsa</span></summary>
+        <div id="one-variant-list">${variants.map(importVariantRow).join('')}</div>
+        <button type="button" class="btn one-variant-add" data-action="import-add-variant">${ico('plus',15)} Variant qo‘şiş</button>
+       </details>
       </details>
       <details class="one-product-options"><summary>Qoşimça ma'lumotlarni tahrirlaş <span>Ixtiyoriy</span></summary>
        <div class="one-product-options-grid">
