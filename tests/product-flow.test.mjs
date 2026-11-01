@@ -8,6 +8,8 @@ function show(state){
   const ctx={
     state,document:{addEventListener(){}},title:(head,desc)=>'<h1>'+head+'</h1><p>'+desc+'</p>',
     ico:()=>'',esc:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),
+    // Same price renderer dependency used by the real product window.
+    sum:value=>Number(value||0).toLocaleString('en-US')+' so‘m',
     Number,URL
   };
   const view=vm.runInNewContext(code+'\n;({importCenterView,productDraftPreview})',ctx);
@@ -29,9 +31,12 @@ test('draft is reviewed and saved in the same window with only missing title req
   const html=view.importCenterView();
   assert.match(html,/id="one-product-form"/);
   assert.match(html,/name="title" required/);
-  assert.match(html,/Ma’lumotni tahrirlash yoki narx qo‘shish/);
+  assert.match(html,/Qoşimça ma'lumotlarni tahrirlaş/);
+  assert.match(html,/Mahsulot tannarxi va foydasi/);
+  assert.match(html,/name="cost"/);
+  assert.match(html,/name="profit"/);
   assert.doesNotMatch(html,/id="one-product-start-form"/);
-  assert.match(html,/Mahsulotni saqlash/);
+  assert.match(html,/Mahsulotni saqlaş/);
 });
 test('if item title is known it never demands another typed name',()=>{
   const data={id:'b'.repeat(64),status:'review',title:'Mahsulot nomi',
