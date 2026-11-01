@@ -42,3 +42,17 @@ export function prepareVariants(raw,baseSku,baseCost,baseProfit,pricing){
  }
  return {variants,priced,unpriced};
 }
+
+/* Explicit shared-price instruction: one sale price for all SKU variants.
+   If a tariff-backed quote is available, choose the highest required price
+   so cheaper variants can exceed, but never fall below, target profit. */
+export function unifyVariantPrices(prepared, manualSalePrice=0){
+ const supplied=toMoney(manualSalePrice,'Umumiy sotuv narxi');
+ const shared=supplied||Math.max(0,...prepared.variants.map(v=>v.price||0));
+ return {...prepared,variants:prepared.variants.map(v=>({
+   ...v,price:shared,price_auto:Boolean(shared&&!supplied)
+  })),
+  priced:shared&&!supplied?prepared.variants.length:0,
+  unpriced:shared?0:prepared.variants.length,
+  sharedPrice:shared};
+}
