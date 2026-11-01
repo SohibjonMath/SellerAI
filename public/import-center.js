@@ -281,19 +281,72 @@ async function prepareImportPhoto(file){
   return new File([blob],'sellerai-import.jpg',{type:'image/jpeg'});
  }finally{bitmap.close()}
 }
+
+function refreshVariantSummary(){
+ const area=document.getElementById('one-variant-summary');if(!area)return;
+ const values=collectOneVariants().map(x=>x.value).filter(Boolean);
+ area.innerHTML=values.length?'<b>'+values.length+' ta variant:</b> '+
+  values.map(x=>'<span>'+esc(x)+'</span>').join(''):'Variantlar hali belgilanmagan.';
+}
+function applyVariantWords(){
+ const entry=document.getElementById('one-variant-instruction');
+ const feedback=document.getElementById('one-instruction-feedback');
+ const namesWrap=document.getElementById('one-instruction-names-wrap');
+ const namesInput=document.getElementById('one-instruction-names');
+ const raw=entry?.value.trim()||'';
+ if(!raw){if(feedback)feedback.textContent='Rang va narx haqida bitta gap yozing.';return}
+ state.importInstruction=raw;
+ try{
+  const data=parseVariantInstruction(raw,namesInput?.value||'');
+  const current=collectOneVariants().filter(v=>v.value);
+  if(data.needsNames&&current.length===data.count){
+   data.values=current.map(v=>v.value);data.needsNames=false;
+  }
+  if(data.needsNames){
+   if(namesWrap)namesWrap.hidden=false;
+   if(feedback)feedback.textContent=data.count+' ta variant tushunildi. Endi faqat rang nomlarini bitta qatorda kiriting.';
+   namesInput?.focus();return;
+  }
+  if(!data.values.length)throw Error('Rang nomlarini yozing. Masalan: pushti, havorang, sariq.');
+  const holder=document.getElementById('one-variant-list');
+  if(!holder)throw Error('Variantlar oynasi topilmadi');
+  const changed=current.length && (current.length!==data.values.length||
+   current.some((v,i)=>v.value.toLocaleLowerCase('uz')!==data.values[i].toLocaleLowerCase('uz')));
+  if(changed&&!confirm('Eski variantlar örniga yangi ranglar yozilsinmi?'))return;
+  const form=document.getElementById('one-product-form');
+  for(const [field,value] of [['cost',data.cost],['profit',data.profit]]){
+   const input=form?.querySelector('[name='+field+']');
+   if(input&&value>0&&!Number(input.value))input.value=String(value);
+  }
+  holder.innerHTML=data.values.map((value,index)=>importVariantRow({
+   name:data.kind,value,
+   stock:current.find(v=>v.value.toLocaleLowerCase('uz')===value.toLocaleLowerCase('uz'))?.stock||0
+  },index)).join('');
+  refreshVariantSummary();
+  if(namesWrap)namesWrap.hidden=true;
+  if(feedback)feedback.textContent=data.values.length+' ta variant tayyor. '+
+   (data.samePrice?'Barchasiga bitta umumiy narx qoidasi qo‘llanadi.':'Barchasi umumiy narx sozlamasidan foydalanadi.');
+  updateOnePricePreview();
+ }catch(e){if(feedback)feedback.textContent=e.message}
+}
+
 async function importCenterAction(action,node){
  if(action==='import-open'){state.page='imports';render();await loadImports();return}
  if(action==='import-start-new'){state.importActive=null;state.importInput='';state.importStatus='';render();return}
  if(action==='import-select-draft'){state.importActive=node.dataset.id;state.importStatus='';render();return}
+ if(action==='import-apply-instruction'){applyVariantWords();return}
  if(action==='import-add-variant'){
   const container=document.getElementById('one-variant-list');
-  if(container&&container.children.length<25)container.insertAdjacentHTML('beforeend',importVariantRow({},container.children.length));
-  else toast('Bir mahsulotga eng ko‘pi 25 ta variant',true);
+  if(container&&container.children.length<25){
+   container.insertAdjacentHTML('beforeend',importVariantRow({},container.children.length));
+   const wrapper=container.closest('.one-variant-advanced');if(wrapper)wrapper.open=true;
+   refreshVariantSummary();
+  }else toast('Bir mahsulotga eng ko‘pi 25 ta variant',true);
   return;
  }
  if(action==='import-remove-variant'){
   node.closest('.one-variant-row')?.remove();
-  updateOnePricePreview();return;
+  refreshVariantSummary();updateOnePricePreview();return;
  }
  if(action==='import-analyze'){
   if(state.importBusy)return;
