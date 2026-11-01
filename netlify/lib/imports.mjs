@@ -134,7 +134,9 @@ export async function handleImports(req,db,path,method){
     const prompt='Suratda ko‘rinadigan mahsulot uchun o‘zbek tilida neytral savdo kartasi tayyorla. '+
       'Faqat rasmdan aniq ko‘rinadigan buyum turi, shakli va rangini ayt. '+
       'Material, brend, o‘lcham, tarkib, sertifikat, kafolat, mahsulot sifati, texnik ko‘rsatkichlarni taxmin qilma. '+
-      'Faqat JSON qaytar: {"title":"...","category":"...","notes":"Faqat ko‘rinadigan faktlar.","description":"...","description_ru":"..."}. '+
+      'Agar suratdagi rang variantlarining yozuvlari aniq o‘qilsa, har birini mavjud nomi bilan yoz. '+ 
+      'Rang yozuvlari o‘qilmasa hech qanday rang nomini taxmin qilma. '+
+      'Faqat JSON qaytar: {"title":"...","category":"...","notes":"Faqat ko‘rinadigan faktlar.","description":"...","description_ru":"...","variants":[{"name":"Rang","value":"..."}]}. '+
       'Aniq ajratib bo‘lmasa bo‘sh qoldir. Hammasi tahrirlanuvchi qoralama.';
     let answer={},aiAvailable=Boolean(process.env.OPENAI_BASE_URL&&process.env.OPENAI_API_KEY);
     if(aiAvailable){
@@ -158,6 +160,9 @@ export async function handleImports(req,db,path,method){
       sku:'AUTO-'+id.slice(0,12).toUpperCase(),category:safeString(answer.category,100),
       notes:safeString(answer.notes,1500),description:safeString(answer.description,3000),
       description_ru:safeString(answer.description_ru,3000),keywords:[],
+      variants:Array.isArray(answer.variants)?answer.variants.slice(0,25).map(v=>({
+        name:safeString(v?.name,50),value:safeString(v?.value,100)
+      })).filter(v=>v.name&&v.value):[],
       price:0,cost:0,stock:0,image_key:key,image_url:'',source_meta:{method:'photo'},
       status:title?'review':'needs_info',product_id:null,
       error:title?'':(aiAvailable?'Suratdan mahsulotni aniqlab bo‘lmadi. Faqat nomini kiriting.':'Surat saqlandi. AI ulanmagan, mahsulot nomini kiriting.'),
