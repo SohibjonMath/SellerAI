@@ -342,8 +342,8 @@ function applyVariantWords(){
 
 async function importCenterAction(action,node){
  if(action==='import-open'){state.page='imports';render();await loadImports();return}
- if(action==='import-start-new'){state.importActive=null;state.importInput='';state.importStatus='';render();return}
- if(action==='import-select-draft'){state.importActive=node.dataset.id;state.importStatus='';render();return}
+ if(action==='import-start-new'){state.importActive=null;state.importInput='';state.importStatus='';state.importInstruction='';state.importSharedPrice=false;state.importPendingVariantCount=0;render();return}
+ if(action==='import-select-draft'){state.importActive=node.dataset.id;state.importStatus='';state.importInstruction='';state.importSharedPrice=false;state.importPendingVariantCount=0;render();return}
  if(action==='import-apply-instruction'){applyVariantWords();return}
  if(action==='import-add-variant'){
   const container=document.getElementById('one-variant-list');
