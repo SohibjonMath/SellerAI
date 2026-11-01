@@ -179,3 +179,22 @@
 .one-product-description>summary{cursor:pointer;font-size:12px;color:#002050;font-weight:600}
 .one-product-success ul{margin:10px 0 0 18px;padding:0;font-size:12px;line-height:1.8}
 @media(max-width:620px){.one-product-economics-grid,.one-variant-inputs{grid-template-columns:1fr}.one-product-variants{padding:11px}.one-product-economics{padding:12px}}
+
+/* Conversational SKU creation: one sentence in, compact variants out. */
+.one-product-talk{border:1px solid #dce4ec;background:#fbfcff;border-radius:4px;padding:14px;display:grid;gap:10px}
+.one-product-talk>label{font-size:13px;color:#002050;font-weight:700}
+.one-product-talk-line{display:flex;align-items:stretch;gap:8px}
+.one-product-talk-line textarea{flex:1;min-width:0;border:1px solid #d5dee9;background:#fff;color:#002050;font:inherit;font-size:12px;line-height:1.6;border-radius:4px;padding:11px;min-height:70px;resize:vertical}
+.one-product-talk-line .btn{white-space:nowrap;align-self:stretch;display:flex;align-items:center;justify-content:center;gap:6px}
+.one-instruction-names{display:grid;gap:7px;border-top:1px solid #e3e9f1;padding-top:12px}
+.one-instruction-names[hidden]{display:none}
+.one-instruction-names label{font-size:12px;font-weight:600;color:#002050}
+.one-instruction-names small{font-size:11px;line-height:1.5;color:#64748b}
+.one-instruction-feedback{font-size:11px;line-height:1.5;color:#64748b;margin:0}
+.one-variant-summary{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:13px 0;font-size:12px;color:#64748b}
+.one-variant-summary b{font-weight:600;color:#002050;margin-right:6px}
+.one-variant-summary span{padding:6px 10px;border:1px solid #dce4ec;border-radius:4px;background:#f8fafc;color:#002050;font-size:11px}
+.one-variant-advanced{border-top:1px solid #e2e8f0;padding-top:12px}
+.one-variant-advanced summary{cursor:pointer;font-size:12px;font-weight:600;color:#002050}
+.one-variant-advanced summary span{font-size:11px;color:#64748b;margin-left:6px;font-weight:400}
+@media(max-width:650px){.one-product-talk-line{flex-direction:column}.one-product-talk-line .btn{min-height:42px;width:100%}}
