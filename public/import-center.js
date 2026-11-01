@@ -59,6 +59,42 @@ function importDraft(){
  const items=state.imports||[];
  return items.find(x=>x.id===state.importActive)||null;
 }
+
+/* Interpret short Uzbek instructions deterministically, without pretending to read photo text. */
+function parseVariantInstruction(raw, namesLine=''){
+ const original=String(raw||'').trim();
+ const text=original.toLowerCase().replace(/[‘’ʻʼ´\u0060]/g,"'");
+ const samePrice=/(?:bir\s*xil|teng)\s*(?:narx|bahoda)|(?:narx(?:i|lari)?\s*(?:bir\s*xil|teng))|(?:hammasi|barchasi)\s*(?:bir\s*xil|teng)/i.test(text);
+ const countMatch=/(?:^|\s)(\d{1,2})\s*(?:ta\s*|xil\s*)?(?:rang|variant|tur)\b/i.exec(text);
+ const declaredCount=countMatch?Number(countMatch[1]):0;
+ const kind=/(?:hajm|ml|litr)/i.test(text)?'Hajm':/(?:o['‘’]?lcham|ölçam|razmer|size)/i.test(text)?'Ölçam':'Rang';
+ const number=(word)=>{
+  const found=new RegExp('(?:'+word+')\\s*[:=]?\\s*(\\d[\\d\\s]*)(?:\\s*so.?m)?','i').exec(text);
+  return found?Number(found[1].replace(/\s/g,'')):null;
+ };
+ const cost=number('tannarx(?:i)?'),profit=number('sof\\s+foyda(?:si)?');
+ let list=String(namesLine||'').trim();
+ if(!list){
+  const marker=/(?:\d{1,2}\s*(?:ta\s*|xil\s*)?rang(?:lar(?:i)?)?|ranglar(?:i)?|rang(?:i)?|variantlar(?:i)?)\s*[:\-]\s*/i.exec(original);
+  if(marker)list=original.slice(marker.index+marker[0].length).split(/[.!?\n]/)[0];
+ }
+ // "Pushti, sariq va kulrang — hammasi bir xil narxda" is also supported.
+ if(!list && /[,;]/.test(original) && !countMatch){
+  list=original.split(/\s*[-—]\s*(?:hammasi|barchasi)/i)[0];
+ }
+ list=list.replace(/\b(?:hammasi|barchasi)\s+bir\s+xil\s+narx(?:da|i)?\b.*$/i,'').trim();
+ const names=list?list.split(/\s*(?:,|;|\s+va\s+)\s*/i)
+  .map(v=>v.replace(/[.!?\s]+$/g,'').trim()).filter(Boolean):[];
+ const safe=names.filter(v=>v.length<=100&&v.length>0);
+ const deduped=[...new Set(safe.map(v=>v.toLocaleLowerCase('uz')))];
+ if(safe.length!==deduped.length)throw Error('Rang nomlari takrorlangan. Har birini bir marta yozing.');
+ if(safe.length>25||declaredCount>25)throw Error('Bir mahsulotda eng ko‘pi 25 ta variant.');
+ if(declaredCount&&safe.length&&safe.length!==declaredCount)
+  throw Error(declaredCount+' ta variant aytdingiz, lekin '+safe.length+' ta nom yozdingiz.');
+ return {kind,values:safe,count:declaredCount||safe.length,samePrice,cost,profit,
+  needsNames:Boolean(declaredCount&&!safe.length)};
+}
+
 function importVariantRow(data={},index=0){
  const hasPicture=Boolean(data.image_key||data.image_url);
  return `<div class="one-variant-row">
